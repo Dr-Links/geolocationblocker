@@ -1,0 +1,2193 @@
+# Copyright (C) 2026 Dr Links
+# This file is distributed under the GPL-2.0-or-later.
+msgid ""
+msgstr ""
+"Project-Id-Version: GeoBlocker 1.0.0\n"
+"Report-Msgid-Bugs-To: https://wordpress.org/support/plugin/geoblocker\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"POT-Creation-Date: 2026-09-25T03:12:49+00:00\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"X-Generator: WP-CLI 2.12.0\n"
+"X-Domain: geoblocker\n"
+
+#. Plugin Name of the plugin
+#: geoblocker.php
+#: includes/Admin/AdminPage.php:90
+#: includes/Admin/AdminPage.php:91
+#: includes/Admin/views/header.php:23
+msgid "GeoBlocker"
+msgstr ""
+
+#. Plugin URI of the plugin
+#: geoblocker.php
+msgid "https://github.com/dr-links/geolocationblocker"
+msgstr ""
+
+#. Description of the plugin
+#: geoblocker.php
+msgid "Block website visitors by country and/or continent using a local GeoIP database (no visitor data sent to third parties by default), with whitelisting, trusted proxy / Cloudflare support, testing tools and privacy-friendly logging."
+msgstr ""
+
+#. Author of the plugin
+#: geoblocker.php
+msgid "Dr Links"
+msgstr ""
+
+#. translators: 1: required PHP version, 2: current PHP version.
+#: geoblocker.php:39
+#, php-format
+msgid "GeoBlocker requires PHP %1$s or newer. Your server is running PHP %2$s, so the plugin has not been loaded."
+msgstr ""
+
+#: includes/Admin/Actions.php:69
+msgid "The GeoIP database was installed successfully."
+msgstr ""
+
+#: includes/Admin/Actions.php:80
+msgid "The geolocation cache was cleared."
+msgstr ""
+
+#: includes/Admin/Actions.php:93
+msgid "Cloudflare IP ranges were updated."
+msgstr ""
+
+#: includes/Admin/Actions.php:104
+msgid "All log entries were deleted."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:47
+msgid "Blocking Rules"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:48
+msgid "Block Action"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:49
+msgid "Whitelist"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:50
+#: includes/Admin/views/header.php:36
+msgid "Geolocation"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:51
+msgid "Proxy & CDN"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:52
+msgid "Test Tool"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:53
+msgid "Logs"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:54
+msgid "Privacy"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:124
+msgid "Search countries…"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:125
+msgid "No matching countries"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:126
+msgid "Remove"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:127
+msgid "No countries selected."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:128
+msgid "Clear all"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:129
+msgid "Testing…"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:130
+msgid "The request failed. Please try again."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:131
+msgid "Delete all log entries? This cannot be undone."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:132
+#: includes/Admin/views/header.php:40
+msgid "Blocked"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:133
+msgid "Allowed"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:134
+msgid "Yes"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:135
+msgid "No"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:136
+#: includes/Admin/LogsListTable.php:46
+#: includes/Admin/views/tab-tools.php:17
+msgid "IP address"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:137
+msgid "Detected country"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:138
+msgid "Detected continent"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:139
+msgid "Result"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:140
+#: includes/Admin/LogsListTable.php:51
+msgid "Reason"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:141
+msgid "Whitelisted"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:142
+msgid "Provider"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:143
+msgid "Lookup error"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:144
+msgid "cached"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:145
+msgid "selected"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:176
+msgid "GeoBlocker:"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:178
+msgid "Blocking is enabled but no GeoIP database is installed yet, so visitor locations cannot be detected."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:180
+msgid "Blocking is enabled but the selected geolocation provider is not configured."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:182
+msgid "Configure geolocation"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:191
+msgid "You do not have permission to access this page."
+msgstr ""
+
+#: includes/Admin/AdminPage.php:223
+msgid "Save Settings"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:291
+msgid "No GeoIP database installed"
+msgstr ""
+
+#: includes/Admin/AdminPage.php:291
+msgid "Provider not configured"
+msgstr ""
+
+#. translators: %s: date.
+#: includes/Admin/AdminPage.php:300
+#, php-format
+msgid "Local database (updated %s)"
+msgstr ""
+
+#. translators: %s: date.
+#: includes/Admin/AdminPage.php:300
+msgid "Local database"
+msgstr ""
+
+#: includes/Admin/Ajax.php:43
+msgid "Cloudflare CF-IPCountry header"
+msgstr ""
+
+#: includes/Admin/Ajax.php:65
+msgid "Your IP address could not be determined."
+msgstr ""
+
+#: includes/Admin/Ajax.php:66
+msgid "Please enter a valid IPv4 or IPv6 address."
+msgstr ""
+
+#: includes/Admin/Ajax.php:84
+msgid "GeoBlocker is currently disabled. The result shows what would happen if it were enabled."
+msgstr ""
+
+#: includes/Admin/Ajax.php:87
+msgid "This is a private or local IP address. If this is the address detected for real visitors, your site is behind a proxy or CDN: configure it on the Proxy & CDN tab."
+msgstr ""
+
+#: includes/Admin/Ajax.php:90
+msgid "You are logged in as an administrator and the administrator bypass is enabled, so you personally will never be blocked."
+msgstr ""
+
+#: includes/Admin/Ajax.php:93
+msgid "The login page and dashboard stay accessible because \"Never block wp-admin and the login page\" is enabled."
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:45
+msgid "Date / time"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:47
+msgid "Country"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:48
+msgid "Continent"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:49
+msgid "Requested URL"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:50
+msgid "User agent"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:124
+msgid "Filter by country"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:126
+msgid "All countries"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:131
+msgid "Filter by reason"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:133
+msgid "All reasons"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:141
+msgid "Filter"
+msgstr ""
+
+#: includes/Admin/LogsListTable.php:150
+msgid "No log entries found."
+msgstr ""
+
+#: includes/Admin/views/header.php:28
+msgid "Status"
+msgstr ""
+
+#: includes/Admin/views/header.php:30
+#: includes/Admin/views/tab-rules.php:24
+msgid "GeoBlocker Enabled"
+msgstr ""
+
+#: includes/Admin/views/header.php:32
+msgid "GeoBlocker Disabled"
+msgstr ""
+
+#. translators: %d: number of countries.
+#: includes/Admin/views/header.php:48
+#, php-format
+msgid "%d country"
+msgid_plural "%d countries"
+msgstr[0] ""
+msgstr[1] ""
+
+#. translators: %d: number of continents.
+#: includes/Admin/views/header.php:52
+#, php-format
+msgid "%d continent"
+msgid_plural "%d continents"
+msgstr[0] ""
+msgstr[1] ""
+
+#: includes/Admin/views/header.php:60
+msgid "Your IP"
+msgstr ""
+
+#: includes/Admin/views/header.php:61
+msgid "unknown"
+msgstr ""
+
+#: includes/Admin/views/header.php:70
+msgid "GeoBlocker sections"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:18
+msgid "5. Block Action"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:19
+msgid "Choose what a blocked visitor sees. Blocked responses are always sent with no-cache headers so page caches and CDNs never store them."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:21
+msgid "Block action"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:24
+msgid "Show a custom blocked page"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:24
+msgid "A styled page with your own rich content (HTTP 403)."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:25
+msgid "Show a custom message"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:25
+msgid "A simple plain-text message (HTTP 403)."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:26
+msgid "Redirect to another URL"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:26
+msgid "Send blocked visitors to another page or website."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:27
+msgid "Return HTTP 403 Forbidden"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:27
+msgid "A minimal \"403 Forbidden\" response. Fastest option."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:43
+#: includes/Admin/views/tab-action.php:45
+msgid "Page title"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:48
+msgid "Shown in the browser tab for the blocked page and custom message."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:52
+msgid "Custom blocked page content"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:53
+msgid "Safe HTML is allowed (headings, links, images, lists, formatting). Scripts, forms and inline event handlers are removed automatically."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:69
+#: includes/Admin/views/tab-action.php:71
+msgid "Custom message"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:74
+msgid "Plain text only. Line breaks are preserved."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:78
+msgid "Redirect"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:81
+msgid "Redirect URL"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:84
+msgid "If the URL is on this website, that page is automatically excluded from blocking to prevent redirect loops."
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:88
+msgid "Redirect type"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:91
+msgid "302 – Temporary (recommended)"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:92
+msgid "307 – Temporary, keep method"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:93
+msgid "303 – See other"
+msgstr ""
+
+#: includes/Admin/views/tab-action.php:94
+msgid "301 – Permanent (browsers cache it)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:28
+msgid "•••••••• (saved – leave empty to keep)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:30
+msgid "Remove saved key"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:52
+msgid "Local GeoIP database"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:54
+msgid "Installed"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:57
+msgid "Database"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:57
+msgid "Custom file"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:59
+msgid "Last updated"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:60
+msgid "Size"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:65
+msgid "Not installed"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:66
+msgid "Download the free database once; afterwards it is updated automatically every month. Lookups then happen entirely on your server: visitor IP addresses are never sent to a third party."
+msgstr ""
+
+#. translators: %s: error message.
+#: includes/Admin/views/tab-geolocation.php:70
+#, php-format
+msgid "Last update failed: %s"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:76
+msgid "Update database now"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:76
+msgid "Download free database now"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:76
+msgid "Downloading… this can take a minute"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:78
+msgid "Clear geolocation cache"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:84
+msgid "The default database is <a href=\"https://db-ip.com\" target=\"_blank\" rel=\"noopener noreferrer\">IP Geolocation by DB-IP</a> (free, no account required, licensed under CC BY 4.0)."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:99
+#: includes/Admin/views/tab-geolocation.php:101
+msgid "Geolocation provider"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:107
+msgid "sends visitor IPs to a third party"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:117
+msgid "Use Cloudflare's country header when available"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:118
+msgid "If your site is behind Cloudflare (and \"Trust Cloudflare\" is enabled on the Proxy & CDN tab), the free CF-IPCountry header is used and no lookup is needed at all. The header is ignored for requests that do not come from a verified Cloudflare server."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:124
+msgid "Local database source"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:127
+msgid "Source"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:130
+msgid "DB-IP IP to Country Lite (free, no account needed)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:131
+msgid "MaxMind GeoLite2 Country (free account and license key)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:132
+msgid "Custom .mmdb file already on the server"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:139
+msgid "MaxMind license key"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:140
+msgid "Only needed for the MaxMind source. Create a free account at <a href=\"https://www.maxmind.com/en/geolite2/signup\" target=\"_blank\" rel=\"noopener noreferrer\">maxmind.com</a>. The key is stored on the server and never shown on your website."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:144
+msgid "Custom database path"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:147
+msgid "Absolute server path to a MaxMind-format (.mmdb) country or city database, e.g. one kept up to date by geoipupdate."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:151
+msgid "Automatic updates"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:153
+msgid "Update the downloaded database automatically (monthly)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:160
+msgid "External API providers (optional)"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:161
+msgid "Only used when an external provider is selected above. Results are cached to minimise requests. Keys are only used server-side."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:166
+msgid "ipapi.co API key"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:167
+msgid "Optional. Without a key the limited free tier is used."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:171
+msgid "IPinfo token"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:172
+msgid "Required for IPinfo Lite. Get a free token at <a href=\"https://ipinfo.io/signup\" target=\"_blank\" rel=\"noopener noreferrer\">ipinfo.io</a>."
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:176
+msgid "Cache lookups for"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:181
+msgid "1 hour"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:182
+msgid "1 day"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:183
+#: includes/Admin/views/tab-logs.php:34
+msgid "7 days"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:184
+#: includes/Admin/views/tab-logs.php:35
+msgid "30 days"
+msgstr ""
+
+#: includes/Admin/views/tab-geolocation.php:190
+msgid "Applies to external providers (and to all providers when a persistent object cache such as Redis is available)."
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:19
+msgid "7. Logging"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:24
+msgid "Enable the blocked visitor log"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:25
+msgid "Records date/time, IP address, country, continent, requested URL, user agent and blocking reason for each blocked visit. Nothing is stored while this is off."
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:30
+msgid "Automatically delete logs after"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:36
+msgid "90 days"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:37
+msgid "365 days"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:38
+msgid "Never"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:47
+msgid "Anonymise IP addresses in the log"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:47
+msgid "Stores 203.0.113.0 instead of 203.0.113.42 (IPv6: last 80 bits removed). Recommended for GDPR data minimisation."
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:48
+msgid "Include query strings in logged URLs"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:48
+msgid "Off by default because query strings can contain personal data (e-mail addresses, tokens)."
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:49
+msgid "Also log failed location lookups"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:49
+msgid "Helps diagnose geolocation problems. Failed lookups are logged whether the visitor was allowed or blocked."
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:56
+msgid "Blocked visitor log"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:57
+msgid "Clear logs"
+msgstr ""
+
+#: includes/Admin/views/tab-logs.php:65
+msgid "Search logs"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:17
+msgid "What visitor information GeoBlocker processes"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:19
+msgid "IP address:"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:19
+msgid "read from the request to determine the visitor's country and continent. With the local database (default) this happens entirely on your server."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:20
+msgid "Country and continent:"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:20
+msgid "derived from the IP address and compared with your rules."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:21
+msgid "Cache:"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:21
+msgid "lookup results (country and continent only) are cached temporarily under a salted one-way hash of the IP address. The IP address itself is not stored."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:22
+msgid "Logs (optional, off by default):"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:22
+msgid "only when logging is enabled, blocked visits are stored with date/time, IP address (optionally anonymised), country, continent, requested path (without query string by default), user agent (truncated) and reason. Logs are deleted automatically after the retention period you choose."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:23
+msgid "No cookies and no front-end scripts:"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:23
+msgid "GeoBlocker does not set cookies or load JavaScript/CSS for visitors."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:26
+msgid "Current configuration"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:32
+msgid "An external geolocation provider is selected: visitor IP addresses are sent to that provider. Mention this in your privacy policy."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:33
+msgid "The local database is selected: visitor IP addresses are not sent to any third party."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:40
+msgid "Logging is disabled: no visitor data is stored permanently."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:42
+msgid "Logging is enabled and logs are kept until you delete them. Consider setting an automatic retention period."
+msgstr ""
+
+#. translators: %d: number of days.
+#: includes/Admin/views/tab-privacy.php:45
+#, php-format
+msgid "Logging is enabled; entries are deleted automatically after %d days."
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:51
+msgid "Suggested privacy policy text"
+msgstr ""
+
+#. translators: %s: link to the privacy policy guide.
+#: includes/Admin/views/tab-privacy.php:56
+#, php-format
+msgid "GeoBlocker adds suggested text to the %s. You can copy it into your privacy policy:"
+msgstr ""
+
+#: includes/Admin/views/tab-privacy.php:57
+msgid "Privacy Policy Guide"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:31
+msgid "How your IP is seen right now"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:32
+msgid "Use this to configure the settings below. If \"Detected visitor IP\" shows your server, load balancer or CDN instead of your own public IP, you need to trust that proxy."
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:36
+msgid "Detected visitor IP"
+msgstr ""
+
+#. translators: %s: header name.
+#: includes/Admin/views/tab-proxy.php:37
+#, php-format
+msgid "(from %s)"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:56
+msgid "Cloudflare"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:61
+msgid "My site is behind Cloudflare – trust Cloudflare"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:62
+msgid "CF-Connecting-IP (and CF-IPCountry) are only trusted when the connection really comes from one of Cloudflare's published IP ranges, so they cannot be spoofed by visitors."
+msgstr ""
+
+#. translators: %s: date.
+#: includes/Admin/views/tab-proxy.php:70
+#, php-format
+msgid "Cloudflare IP list last refreshed: %s. It is refreshed weekly while this option is on."
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:71
+msgid "Using the Cloudflare IP list built into the plugin."
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:78
+msgid "Other reverse proxies, load balancers and CDNs"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:81
+msgid "Trusted proxy IPs / ranges"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:84
+msgid "One IP, CIDR range or start-end range per line. The forwarding header below is ONLY read when the request comes directly from one of these addresses. Leave empty if you do not use a proxy."
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:88
+msgid "Client IP header"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:98
+msgid "Custom header…"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:105
+msgid "For X-Forwarded-For, the address list is read from right to left and trusted proxies are skipped, so spoofed values added by the visitor are ignored."
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:109
+msgid "Custom header name"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:119
+msgid "Maintenance"
+msgstr ""
+
+#: includes/Admin/views/tab-proxy.php:120
+msgid "Refresh Cloudflare IP list now"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:19
+msgid "1. Enable / Disable"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:25
+msgid "Master switch. When off, no visitor is ever checked or blocked."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:31
+msgid "2. Blocking Mode"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:32
+msgid "All locations are allowed except the ones you select below."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:34
+msgid "Blocking mode"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:37
+msgid "Block selected countries"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:37
+msgid "Only the country list is used."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:38
+msgid "Block selected continents"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:38
+msgid "Only the continent list is used."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:39
+msgid "Block selected countries and continents"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:39
+msgid "A visitor is blocked if their country OR their continent is selected."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:55
+msgid "3. Blocked Countries"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:56
+msgid "Search and select every country you want to block. Click × to remove a country."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:57
+msgid "Blocked countries"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:58
+msgid "Country blocking is not active in the selected mode. Your selection is kept."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:62
+msgid "4. Blocked Continents"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:64
+msgid "Blocked continents"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:72
+msgid "Continent blocking is not active in the selected mode. Your selection is kept."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:76
+#: includes/Admin/views/tab-rules.php:79
+msgid "When location detection fails"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:77
+msgid "Detection can fail for unknown IP ranges or when the geolocation service is unavailable. Allowing is the safe default: a failure never locks everyone out."
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:80
+msgid "Allow visitor (recommended)"
+msgstr ""
+
+#: includes/Admin/views/tab-rules.php:81
+msgid "Block visitor"
+msgstr ""
+
+#: includes/Admin/views/tab-tools.php:13
+msgid "Admin Testing Tool"
+msgstr ""
+
+#: includes/Admin/views/tab-tools.php:14
+msgid "Check how GeoBlocker would treat any IP address with your current (saved) settings. Testing never blocks you."
+msgstr ""
+
+#: includes/Admin/views/tab-tools.php:20
+msgid "Test IP"
+msgstr ""
+
+#: includes/Admin/views/tab-tools.php:21
+msgid "Test Current IP"
+msgstr ""
+
+#: includes/Admin/views/tab-tools.php:26
+msgid "The testing tool requires JavaScript."
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:17
+msgid "6. Whitelist"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:18
+msgid "Whitelisted visitors always bypass geographical blocking."
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:20
+msgid "IP addresses and ranges"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:22
+msgid "One entry per line: single IPs, CIDR ranges (e.g. 198.51.100.0/24) or start-end ranges. IPv4 and IPv6 are supported. Lines starting with # are ignored."
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:24
+#: includes/Admin/views/tab-whitelist.php:26
+msgid "Whitelisted countries"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:25
+msgid "Visitors from these countries are never blocked, even if their continent is blocked (e.g. block Europe but allow France)."
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:30
+msgid "Administrators & dashboard access"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:35
+msgid "Logged-in administrators bypass blocking"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:36
+msgid "Users who can manage options (and network super admins) are never blocked while logged in."
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:41
+msgid "Never block wp-admin and the login page"
+msgstr ""
+
+#: includes/Admin/views/tab-whitelist.php:42
+msgid "Strongly recommended: guarantees you can always log in, even if you travel to a blocked country. Disable only if you also want to block logins from blocked locations."
+msgstr ""
+
+#: includes/Geo/Countries.php:324
+msgid "Africa"
+msgstr ""
+
+#: includes/Geo/Countries.php:325
+#: includes/Geo/Countries.php:373
+msgid "Antarctica"
+msgstr ""
+
+#: includes/Geo/Countries.php:326
+msgid "Asia"
+msgstr ""
+
+#: includes/Geo/Countries.php:327
+msgid "Europe"
+msgstr ""
+
+#: includes/Geo/Countries.php:328
+msgid "North America"
+msgstr ""
+
+#: includes/Geo/Countries.php:329
+msgid "Oceania"
+msgstr ""
+
+#: includes/Geo/Countries.php:330
+msgid "South America"
+msgstr ""
+
+#: includes/Geo/Countries.php:341
+#: includes/Geo/Countries.php:351
+msgid "Unknown"
+msgstr ""
+
+#: includes/Geo/Countries.php:365
+msgid "Andorra"
+msgstr ""
+
+#: includes/Geo/Countries.php:366
+msgid "United Arab Emirates"
+msgstr ""
+
+#: includes/Geo/Countries.php:367
+msgid "Afghanistan"
+msgstr ""
+
+#: includes/Geo/Countries.php:368
+msgid "Antigua and Barbuda"
+msgstr ""
+
+#: includes/Geo/Countries.php:369
+msgid "Anguilla"
+msgstr ""
+
+#: includes/Geo/Countries.php:370
+msgid "Albania"
+msgstr ""
+
+#: includes/Geo/Countries.php:371
+msgid "Armenia"
+msgstr ""
+
+#: includes/Geo/Countries.php:372
+msgid "Angola"
+msgstr ""
+
+#: includes/Geo/Countries.php:374
+msgid "Argentina"
+msgstr ""
+
+#: includes/Geo/Countries.php:375
+msgid "American Samoa"
+msgstr ""
+
+#: includes/Geo/Countries.php:376
+msgid "Austria"
+msgstr ""
+
+#: includes/Geo/Countries.php:377
+msgid "Australia"
+msgstr ""
+
+#: includes/Geo/Countries.php:378
+msgid "Aruba"
+msgstr ""
+
+#: includes/Geo/Countries.php:379
+msgid "Åland Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:380
+msgid "Azerbaijan"
+msgstr ""
+
+#: includes/Geo/Countries.php:381
+msgid "Bosnia and Herzegovina"
+msgstr ""
+
+#: includes/Geo/Countries.php:382
+msgid "Barbados"
+msgstr ""
+
+#: includes/Geo/Countries.php:383
+msgid "Bangladesh"
+msgstr ""
+
+#: includes/Geo/Countries.php:384
+msgid "Belgium"
+msgstr ""
+
+#: includes/Geo/Countries.php:385
+msgid "Burkina Faso"
+msgstr ""
+
+#: includes/Geo/Countries.php:386
+msgid "Bulgaria"
+msgstr ""
+
+#: includes/Geo/Countries.php:387
+msgid "Bahrain"
+msgstr ""
+
+#: includes/Geo/Countries.php:388
+msgid "Burundi"
+msgstr ""
+
+#: includes/Geo/Countries.php:389
+msgid "Benin"
+msgstr ""
+
+#: includes/Geo/Countries.php:390
+msgid "Saint Barthélemy"
+msgstr ""
+
+#: includes/Geo/Countries.php:391
+msgid "Bermuda"
+msgstr ""
+
+#: includes/Geo/Countries.php:392
+msgid "Brunei"
+msgstr ""
+
+#: includes/Geo/Countries.php:393
+msgid "Bolivia"
+msgstr ""
+
+#: includes/Geo/Countries.php:394
+msgid "Caribbean Netherlands"
+msgstr ""
+
+#: includes/Geo/Countries.php:395
+msgid "Brazil"
+msgstr ""
+
+#: includes/Geo/Countries.php:396
+msgid "Bahamas"
+msgstr ""
+
+#: includes/Geo/Countries.php:397
+msgid "Bhutan"
+msgstr ""
+
+#: includes/Geo/Countries.php:398
+msgid "Bouvet Island"
+msgstr ""
+
+#: includes/Geo/Countries.php:399
+msgid "Botswana"
+msgstr ""
+
+#: includes/Geo/Countries.php:400
+msgid "Belarus"
+msgstr ""
+
+#: includes/Geo/Countries.php:401
+msgid "Belize"
+msgstr ""
+
+#: includes/Geo/Countries.php:402
+msgid "Canada"
+msgstr ""
+
+#: includes/Geo/Countries.php:403
+msgid "Cocos (Keeling) Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:404
+msgid "Congo (DRC)"
+msgstr ""
+
+#: includes/Geo/Countries.php:405
+msgid "Central African Republic"
+msgstr ""
+
+#: includes/Geo/Countries.php:406
+msgid "Congo (Republic)"
+msgstr ""
+
+#: includes/Geo/Countries.php:407
+msgid "Switzerland"
+msgstr ""
+
+#: includes/Geo/Countries.php:408
+msgid "Côte d’Ivoire"
+msgstr ""
+
+#: includes/Geo/Countries.php:409
+msgid "Cook Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:410
+msgid "Chile"
+msgstr ""
+
+#: includes/Geo/Countries.php:411
+msgid "Cameroon"
+msgstr ""
+
+#: includes/Geo/Countries.php:412
+msgid "China"
+msgstr ""
+
+#: includes/Geo/Countries.php:413
+msgid "Colombia"
+msgstr ""
+
+#: includes/Geo/Countries.php:414
+msgid "Costa Rica"
+msgstr ""
+
+#: includes/Geo/Countries.php:415
+msgid "Cuba"
+msgstr ""
+
+#: includes/Geo/Countries.php:416
+msgid "Cabo Verde"
+msgstr ""
+
+#: includes/Geo/Countries.php:417
+msgid "Curaçao"
+msgstr ""
+
+#: includes/Geo/Countries.php:418
+msgid "Christmas Island"
+msgstr ""
+
+#: includes/Geo/Countries.php:419
+msgid "Cyprus"
+msgstr ""
+
+#: includes/Geo/Countries.php:420
+msgid "Czechia"
+msgstr ""
+
+#: includes/Geo/Countries.php:421
+msgid "Germany"
+msgstr ""
+
+#: includes/Geo/Countries.php:422
+msgid "Djibouti"
+msgstr ""
+
+#: includes/Geo/Countries.php:423
+msgid "Denmark"
+msgstr ""
+
+#: includes/Geo/Countries.php:424
+msgid "Dominica"
+msgstr ""
+
+#: includes/Geo/Countries.php:425
+msgid "Dominican Republic"
+msgstr ""
+
+#: includes/Geo/Countries.php:426
+msgid "Algeria"
+msgstr ""
+
+#: includes/Geo/Countries.php:427
+msgid "Ecuador"
+msgstr ""
+
+#: includes/Geo/Countries.php:428
+msgid "Estonia"
+msgstr ""
+
+#: includes/Geo/Countries.php:429
+msgid "Egypt"
+msgstr ""
+
+#: includes/Geo/Countries.php:430
+msgid "Western Sahara"
+msgstr ""
+
+#: includes/Geo/Countries.php:431
+msgid "Eritrea"
+msgstr ""
+
+#: includes/Geo/Countries.php:432
+msgid "Spain"
+msgstr ""
+
+#: includes/Geo/Countries.php:433
+msgid "Ethiopia"
+msgstr ""
+
+#: includes/Geo/Countries.php:434
+msgid "Finland"
+msgstr ""
+
+#: includes/Geo/Countries.php:435
+msgid "Fiji"
+msgstr ""
+
+#: includes/Geo/Countries.php:436
+msgid "Falkland Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:437
+msgid "Micronesia"
+msgstr ""
+
+#: includes/Geo/Countries.php:438
+msgid "Faroe Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:439
+msgid "France"
+msgstr ""
+
+#: includes/Geo/Countries.php:440
+msgid "Gabon"
+msgstr ""
+
+#: includes/Geo/Countries.php:441
+msgid "United Kingdom"
+msgstr ""
+
+#: includes/Geo/Countries.php:442
+msgid "Grenada"
+msgstr ""
+
+#: includes/Geo/Countries.php:443
+msgid "Georgia"
+msgstr ""
+
+#: includes/Geo/Countries.php:444
+msgid "French Guiana"
+msgstr ""
+
+#: includes/Geo/Countries.php:445
+msgid "Guernsey"
+msgstr ""
+
+#: includes/Geo/Countries.php:446
+msgid "Ghana"
+msgstr ""
+
+#: includes/Geo/Countries.php:447
+msgid "Gibraltar"
+msgstr ""
+
+#: includes/Geo/Countries.php:448
+msgid "Greenland"
+msgstr ""
+
+#: includes/Geo/Countries.php:449
+msgid "Gambia"
+msgstr ""
+
+#: includes/Geo/Countries.php:450
+msgid "Guinea"
+msgstr ""
+
+#: includes/Geo/Countries.php:451
+msgid "Guadeloupe"
+msgstr ""
+
+#: includes/Geo/Countries.php:452
+msgid "Equatorial Guinea"
+msgstr ""
+
+#: includes/Geo/Countries.php:453
+msgid "Greece"
+msgstr ""
+
+#: includes/Geo/Countries.php:454
+msgid "South Georgia and the South Sandwich Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:455
+msgid "Guatemala"
+msgstr ""
+
+#: includes/Geo/Countries.php:456
+msgid "Guam"
+msgstr ""
+
+#: includes/Geo/Countries.php:457
+msgid "Guinea-Bissau"
+msgstr ""
+
+#: includes/Geo/Countries.php:458
+msgid "Guyana"
+msgstr ""
+
+#: includes/Geo/Countries.php:459
+msgid "Hong Kong"
+msgstr ""
+
+#: includes/Geo/Countries.php:460
+msgid "Heard Island and McDonald Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:461
+msgid "Honduras"
+msgstr ""
+
+#: includes/Geo/Countries.php:462
+msgid "Croatia"
+msgstr ""
+
+#: includes/Geo/Countries.php:463
+msgid "Haiti"
+msgstr ""
+
+#: includes/Geo/Countries.php:464
+msgid "Hungary"
+msgstr ""
+
+#: includes/Geo/Countries.php:465
+msgid "Indonesia"
+msgstr ""
+
+#: includes/Geo/Countries.php:466
+msgid "Ireland"
+msgstr ""
+
+#: includes/Geo/Countries.php:467
+msgid "Israel"
+msgstr ""
+
+#: includes/Geo/Countries.php:468
+msgid "Isle of Man"
+msgstr ""
+
+#: includes/Geo/Countries.php:469
+msgid "India"
+msgstr ""
+
+#: includes/Geo/Countries.php:470
+msgid "British Indian Ocean Territory"
+msgstr ""
+
+#: includes/Geo/Countries.php:471
+msgid "Iraq"
+msgstr ""
+
+#: includes/Geo/Countries.php:472
+msgid "Iran"
+msgstr ""
+
+#: includes/Geo/Countries.php:473
+msgid "Iceland"
+msgstr ""
+
+#: includes/Geo/Countries.php:474
+msgid "Italy"
+msgstr ""
+
+#: includes/Geo/Countries.php:475
+msgid "Jersey"
+msgstr ""
+
+#: includes/Geo/Countries.php:476
+msgid "Jamaica"
+msgstr ""
+
+#: includes/Geo/Countries.php:477
+msgid "Jordan"
+msgstr ""
+
+#: includes/Geo/Countries.php:478
+msgid "Japan"
+msgstr ""
+
+#: includes/Geo/Countries.php:479
+msgid "Kenya"
+msgstr ""
+
+#: includes/Geo/Countries.php:480
+msgid "Kyrgyzstan"
+msgstr ""
+
+#: includes/Geo/Countries.php:481
+msgid "Cambodia"
+msgstr ""
+
+#: includes/Geo/Countries.php:482
+msgid "Kiribati"
+msgstr ""
+
+#: includes/Geo/Countries.php:483
+msgid "Comoros"
+msgstr ""
+
+#: includes/Geo/Countries.php:484
+msgid "Saint Kitts and Nevis"
+msgstr ""
+
+#: includes/Geo/Countries.php:485
+msgid "North Korea"
+msgstr ""
+
+#: includes/Geo/Countries.php:486
+msgid "South Korea"
+msgstr ""
+
+#: includes/Geo/Countries.php:487
+msgid "Kuwait"
+msgstr ""
+
+#: includes/Geo/Countries.php:488
+msgid "Cayman Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:489
+msgid "Kazakhstan"
+msgstr ""
+
+#: includes/Geo/Countries.php:490
+msgid "Laos"
+msgstr ""
+
+#: includes/Geo/Countries.php:491
+msgid "Lebanon"
+msgstr ""
+
+#: includes/Geo/Countries.php:492
+msgid "Saint Lucia"
+msgstr ""
+
+#: includes/Geo/Countries.php:493
+msgid "Liechtenstein"
+msgstr ""
+
+#: includes/Geo/Countries.php:494
+msgid "Sri Lanka"
+msgstr ""
+
+#: includes/Geo/Countries.php:495
+msgid "Liberia"
+msgstr ""
+
+#: includes/Geo/Countries.php:496
+msgid "Lesotho"
+msgstr ""
+
+#: includes/Geo/Countries.php:497
+msgid "Lithuania"
+msgstr ""
+
+#: includes/Geo/Countries.php:498
+msgid "Luxembourg"
+msgstr ""
+
+#: includes/Geo/Countries.php:499
+msgid "Latvia"
+msgstr ""
+
+#: includes/Geo/Countries.php:500
+msgid "Libya"
+msgstr ""
+
+#: includes/Geo/Countries.php:501
+msgid "Morocco"
+msgstr ""
+
+#: includes/Geo/Countries.php:502
+msgid "Monaco"
+msgstr ""
+
+#: includes/Geo/Countries.php:503
+msgid "Moldova"
+msgstr ""
+
+#: includes/Geo/Countries.php:504
+msgid "Montenegro"
+msgstr ""
+
+#: includes/Geo/Countries.php:505
+msgid "Saint Martin"
+msgstr ""
+
+#: includes/Geo/Countries.php:506
+msgid "Madagascar"
+msgstr ""
+
+#: includes/Geo/Countries.php:507
+msgid "Marshall Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:508
+msgid "North Macedonia"
+msgstr ""
+
+#: includes/Geo/Countries.php:509
+msgid "Mali"
+msgstr ""
+
+#: includes/Geo/Countries.php:510
+msgid "Myanmar"
+msgstr ""
+
+#: includes/Geo/Countries.php:511
+msgid "Mongolia"
+msgstr ""
+
+#: includes/Geo/Countries.php:512
+msgid "Macao"
+msgstr ""
+
+#: includes/Geo/Countries.php:513
+msgid "Northern Mariana Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:514
+msgid "Martinique"
+msgstr ""
+
+#: includes/Geo/Countries.php:515
+msgid "Mauritania"
+msgstr ""
+
+#: includes/Geo/Countries.php:516
+msgid "Montserrat"
+msgstr ""
+
+#: includes/Geo/Countries.php:517
+msgid "Malta"
+msgstr ""
+
+#: includes/Geo/Countries.php:518
+msgid "Mauritius"
+msgstr ""
+
+#: includes/Geo/Countries.php:519
+msgid "Maldives"
+msgstr ""
+
+#: includes/Geo/Countries.php:520
+msgid "Malawi"
+msgstr ""
+
+#: includes/Geo/Countries.php:521
+msgid "Mexico"
+msgstr ""
+
+#: includes/Geo/Countries.php:522
+msgid "Malaysia"
+msgstr ""
+
+#: includes/Geo/Countries.php:523
+msgid "Mozambique"
+msgstr ""
+
+#: includes/Geo/Countries.php:524
+msgid "Namibia"
+msgstr ""
+
+#: includes/Geo/Countries.php:525
+msgid "New Caledonia"
+msgstr ""
+
+#: includes/Geo/Countries.php:526
+msgid "Niger"
+msgstr ""
+
+#: includes/Geo/Countries.php:527
+msgid "Norfolk Island"
+msgstr ""
+
+#: includes/Geo/Countries.php:528
+msgid "Nigeria"
+msgstr ""
+
+#: includes/Geo/Countries.php:529
+msgid "Nicaragua"
+msgstr ""
+
+#: includes/Geo/Countries.php:530
+msgid "Netherlands"
+msgstr ""
+
+#: includes/Geo/Countries.php:531
+msgid "Norway"
+msgstr ""
+
+#: includes/Geo/Countries.php:532
+msgid "Nepal"
+msgstr ""
+
+#: includes/Geo/Countries.php:533
+msgid "Nauru"
+msgstr ""
+
+#: includes/Geo/Countries.php:534
+msgid "Niue"
+msgstr ""
+
+#: includes/Geo/Countries.php:535
+msgid "New Zealand"
+msgstr ""
+
+#: includes/Geo/Countries.php:536
+msgid "Oman"
+msgstr ""
+
+#: includes/Geo/Countries.php:537
+msgid "Panama"
+msgstr ""
+
+#: includes/Geo/Countries.php:538
+msgid "Peru"
+msgstr ""
+
+#: includes/Geo/Countries.php:539
+msgid "French Polynesia"
+msgstr ""
+
+#: includes/Geo/Countries.php:540
+msgid "Papua New Guinea"
+msgstr ""
+
+#: includes/Geo/Countries.php:541
+msgid "Philippines"
+msgstr ""
+
+#: includes/Geo/Countries.php:542
+msgid "Pakistan"
+msgstr ""
+
+#: includes/Geo/Countries.php:543
+msgid "Poland"
+msgstr ""
+
+#: includes/Geo/Countries.php:544
+msgid "Saint Pierre and Miquelon"
+msgstr ""
+
+#: includes/Geo/Countries.php:545
+msgid "Pitcairn Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:546
+msgid "Puerto Rico"
+msgstr ""
+
+#: includes/Geo/Countries.php:547
+msgid "Palestine"
+msgstr ""
+
+#: includes/Geo/Countries.php:548
+msgid "Portugal"
+msgstr ""
+
+#: includes/Geo/Countries.php:549
+msgid "Palau"
+msgstr ""
+
+#: includes/Geo/Countries.php:550
+msgid "Paraguay"
+msgstr ""
+
+#: includes/Geo/Countries.php:551
+msgid "Qatar"
+msgstr ""
+
+#: includes/Geo/Countries.php:552
+msgid "Réunion"
+msgstr ""
+
+#: includes/Geo/Countries.php:553
+msgid "Romania"
+msgstr ""
+
+#: includes/Geo/Countries.php:554
+msgid "Serbia"
+msgstr ""
+
+#: includes/Geo/Countries.php:555
+msgid "Russia"
+msgstr ""
+
+#: includes/Geo/Countries.php:556
+msgid "Rwanda"
+msgstr ""
+
+#: includes/Geo/Countries.php:557
+msgid "Saudi Arabia"
+msgstr ""
+
+#: includes/Geo/Countries.php:558
+msgid "Solomon Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:559
+msgid "Seychelles"
+msgstr ""
+
+#: includes/Geo/Countries.php:560
+msgid "Sudan"
+msgstr ""
+
+#: includes/Geo/Countries.php:561
+msgid "Sweden"
+msgstr ""
+
+#: includes/Geo/Countries.php:562
+msgid "Singapore"
+msgstr ""
+
+#: includes/Geo/Countries.php:563
+msgid "Saint Helena, Ascension and Tristan da Cunha"
+msgstr ""
+
+#: includes/Geo/Countries.php:564
+msgid "Slovenia"
+msgstr ""
+
+#: includes/Geo/Countries.php:565
+msgid "Svalbard and Jan Mayen"
+msgstr ""
+
+#: includes/Geo/Countries.php:566
+msgid "Slovakia"
+msgstr ""
+
+#: includes/Geo/Countries.php:567
+msgid "Sierra Leone"
+msgstr ""
+
+#: includes/Geo/Countries.php:568
+msgid "San Marino"
+msgstr ""
+
+#: includes/Geo/Countries.php:569
+msgid "Senegal"
+msgstr ""
+
+#: includes/Geo/Countries.php:570
+msgid "Somalia"
+msgstr ""
+
+#: includes/Geo/Countries.php:571
+msgid "Suriname"
+msgstr ""
+
+#: includes/Geo/Countries.php:572
+msgid "South Sudan"
+msgstr ""
+
+#: includes/Geo/Countries.php:573
+msgid "São Tomé and Príncipe"
+msgstr ""
+
+#: includes/Geo/Countries.php:574
+msgid "El Salvador"
+msgstr ""
+
+#: includes/Geo/Countries.php:575
+msgid "Sint Maarten"
+msgstr ""
+
+#: includes/Geo/Countries.php:576
+msgid "Syria"
+msgstr ""
+
+#: includes/Geo/Countries.php:577
+msgid "Eswatini"
+msgstr ""
+
+#: includes/Geo/Countries.php:578
+msgid "Turks and Caicos Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:579
+msgid "Chad"
+msgstr ""
+
+#: includes/Geo/Countries.php:580
+msgid "French Southern Territories"
+msgstr ""
+
+#: includes/Geo/Countries.php:581
+msgid "Togo"
+msgstr ""
+
+#: includes/Geo/Countries.php:582
+msgid "Thailand"
+msgstr ""
+
+#: includes/Geo/Countries.php:583
+msgid "Tajikistan"
+msgstr ""
+
+#: includes/Geo/Countries.php:584
+msgid "Tokelau"
+msgstr ""
+
+#: includes/Geo/Countries.php:585
+msgid "Timor-Leste"
+msgstr ""
+
+#: includes/Geo/Countries.php:586
+msgid "Turkmenistan"
+msgstr ""
+
+#: includes/Geo/Countries.php:587
+msgid "Tunisia"
+msgstr ""
+
+#: includes/Geo/Countries.php:588
+msgid "Tonga"
+msgstr ""
+
+#: includes/Geo/Countries.php:589
+msgid "Türkiye"
+msgstr ""
+
+#: includes/Geo/Countries.php:590
+msgid "Trinidad and Tobago"
+msgstr ""
+
+#: includes/Geo/Countries.php:591
+msgid "Tuvalu"
+msgstr ""
+
+#: includes/Geo/Countries.php:592
+msgid "Taiwan"
+msgstr ""
+
+#: includes/Geo/Countries.php:593
+msgid "Tanzania"
+msgstr ""
+
+#: includes/Geo/Countries.php:594
+msgid "Ukraine"
+msgstr ""
+
+#: includes/Geo/Countries.php:595
+msgid "Uganda"
+msgstr ""
+
+#: includes/Geo/Countries.php:596
+msgid "U.S. Outlying Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:597
+msgid "United States"
+msgstr ""
+
+#: includes/Geo/Countries.php:598
+msgid "Uruguay"
+msgstr ""
+
+#: includes/Geo/Countries.php:599
+msgid "Uzbekistan"
+msgstr ""
+
+#: includes/Geo/Countries.php:600
+msgid "Vatican City"
+msgstr ""
+
+#: includes/Geo/Countries.php:601
+msgid "Saint Vincent and the Grenadines"
+msgstr ""
+
+#: includes/Geo/Countries.php:602
+msgid "Venezuela"
+msgstr ""
+
+#: includes/Geo/Countries.php:603
+msgid "British Virgin Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:604
+msgid "U.S. Virgin Islands"
+msgstr ""
+
+#: includes/Geo/Countries.php:605
+msgid "Vietnam"
+msgstr ""
+
+#: includes/Geo/Countries.php:606
+msgid "Vanuatu"
+msgstr ""
+
+#: includes/Geo/Countries.php:607
+msgid "Wallis and Futuna"
+msgstr ""
+
+#: includes/Geo/Countries.php:608
+msgid "Samoa"
+msgstr ""
+
+#: includes/Geo/Countries.php:609
+msgid "Kosovo"
+msgstr ""
+
+#: includes/Geo/Countries.php:610
+msgid "Yemen"
+msgstr ""
+
+#: includes/Geo/Countries.php:611
+msgid "Mayotte"
+msgstr ""
+
+#: includes/Geo/Countries.php:612
+msgid "South Africa"
+msgstr ""
+
+#: includes/Geo/Countries.php:613
+msgid "Zambia"
+msgstr ""
+
+#: includes/Geo/Countries.php:614
+msgid "Zimbabwe"
+msgstr ""
+
+#: includes/Geo/Countries.php:615
+msgid "Tor network (Cloudflare only)"
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:104
+msgid "The database was downloaded but could not be moved into place. Check the uploads folder permissions."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:167
+msgid "The GeoIP database file does not exist or is not readable."
+msgstr ""
+
+#. translators: %s: error message.
+#: includes/Geo/DatabaseUpdater.php:176
+#, php-format
+msgid "The GeoIP database is not valid: %s"
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:189
+msgid "Could not create the GeoIP folder in wp-content/uploads. Check the folder permissions."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:225
+msgid "Could not download the DB-IP database."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:237
+msgid "Enter your free MaxMind license key first."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:252
+msgid "Could not download the MaxMind database. Check that your license key is correct and active."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:269
+#: includes/Geo/DatabaseUpdater.php:302
+msgid "The PHP zlib extension is required to install the GeoIP database."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:276
+msgid "Could not decompress the GeoIP database."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:307
+msgid "Could not open the downloaded archive."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:310
+msgid "No .mmdb file was found in the downloaded archive."
+msgstr ""
+
+#: includes/Geo/DatabaseUpdater.php:341
+msgid "The downloaded archive is incomplete."
+msgstr ""
+
+#: includes/Geo/Providers/IpapiProvider.php:32
+msgid "ipapi.co (external API, free tier available)"
+msgstr ""
+
+#: includes/Geo/Providers/IpinfoProvider.php:31
+msgid "IPinfo Lite (external API, free token required)"
+msgstr ""
+
+#: includes/Geo/Providers/LocalDatabaseProvider.php:47
+msgid "Local GeoIP database (recommended, private & fast)"
+msgstr ""
+
+#: includes/Ip/CloudflareRanges.php:89
+msgid "Cloudflare returned an unexpected response."
+msgstr ""
+
+#: includes/Ip/CloudflareRanges.php:101
+msgid "The downloaded Cloudflare IP list looked incomplete and was not saved."
+msgstr ""
+
+#: includes/Plugin.php:94
+msgid "Settings"
+msgstr ""
+
+#: includes/Privacy.php:29
+msgid "This website uses GeoBlocker to restrict access from certain geographical locations."
+msgstr ""
+
+#: includes/Privacy.php:30
+msgid "When you visit this website, your IP address is used to determine your country and continent. By default the lookup is performed locally on our server using a GeoIP database, so your IP address is not sent to any third party. If the site administrator has configured an external geolocation service, your IP address is sent to that service for the lookup."
+msgstr ""
+
+#: includes/Privacy.php:31
+msgid "Location results may be cached temporarily (by default for up to 7 days) under a one-way hashed key to improve performance. Your IP address is not stored permanently unless access logging is enabled."
+msgstr ""
+
+#: includes/Privacy.php:32
+msgid "If access logging is enabled and your visit is blocked, we record the date and time, your IP address (optionally anonymised), your country and continent, the page you requested, your browser user agent and the reason for the block. These logs are used for security purposes and are automatically deleted after the retention period configured by the administrator."
+msgstr ""
+
+#: includes/Privacy.php:35
+msgid "Suggested text:"
+msgstr ""
+
+#: includes/Rules/Decision.php:67
+msgid "GeoBlocker is disabled"
+msgstr ""
+
+#: includes/Rules/Decision.php:68
+msgid "IP address is whitelisted"
+msgstr ""
+
+#: includes/Rules/Decision.php:69
+msgid "Logged-in administrator bypass"
+msgstr ""
+
+#: includes/Rules/Decision.php:70
+msgid "Private / local IP address (cannot be geolocated)"
+msgstr ""
+
+#: includes/Rules/Decision.php:71
+msgid "Country is whitelisted"
+msgstr ""
+
+#: includes/Rules/Decision.php:72
+msgid "Country is blocked"
+msgstr ""
+
+#: includes/Rules/Decision.php:73
+msgid "Continent is blocked"
+msgstr ""
+
+#: includes/Rules/Decision.php:74
+msgid "Location detection failed (visitor allowed)"
+msgstr ""
+
+#: includes/Rules/Decision.php:75
+msgid "Location detection failed (visitor blocked)"
+msgstr ""
+
+#: includes/Rules/Decision.php:76
+msgid "Location is not blocked"
+msgstr ""
+
+#: includes/Security/Guard.php:56
+msgid "You do not have permission to manage GeoBlocker."
+msgstr ""
+
+#: includes/Security/Guard.php:68
+msgid "Your session has expired. Please reload the page and try again."
+msgstr ""
+
+#: includes/Security/Guard.php:71
+msgid "You do not have permission to do this."
+msgstr ""
+
+#: includes/Settings.php:252
+msgid "Please enter a valid redirect URL (http or https). Blocked visitors will receive a 403 response until one is set."
+msgstr ""
+
+#. translators: %s: comma separated list of invalid entries.
+#: includes/Settings.php:279
+#, php-format
+msgid "These entries are not valid IP addresses, CIDR ranges or IP ranges and were ignored: %s"
+msgstr ""
+
+#: includes/Settings.php:310
+msgid "The custom database path must be an absolute path to a .mmdb file."
+msgstr ""
