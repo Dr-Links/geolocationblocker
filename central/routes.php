@@ -8,6 +8,8 @@ use Signalpost\Controllers\AuthController;
 use Signalpost\Controllers\DashboardController;
 use Signalpost\Controllers\HealthController;
 use Signalpost\Controllers\InstallController;
+use Signalpost\Controllers\IntegrationController;
+use Signalpost\Controllers\WebsiteController;
 use Signalpost\Controllers\MembersController;
 use Signalpost\Controllers\WorkspaceController;
 use Signalpost\Http\Router;
@@ -64,6 +66,25 @@ return static function (Router $r): void {
     $r->post('/w/{ws}/members/{id}/revoke', [MembersController::class, 'revoke'], 'session');
     $r->post('/w/{ws}/support-grants', [MembersController::class, 'grantSupport'], 'session');
     $r->post('/w/{ws}/support-grants/{id}/revoke', [MembersController::class, 'revokeSupport'], 'session');
+
+    // Websites, credentials and per-website settings.
+    $r->get('/w/{ws}/websites', [WebsiteController::class, 'index'], 'session');
+    $r->post('/w/{ws}/websites', [WebsiteController::class, 'create'], 'session');
+    $r->get('/w/{ws}/websites/{id}', [WebsiteController::class, 'show'], 'session');
+    $r->post('/w/{ws}/websites/{id}', [WebsiteController::class, 'update'], 'session');
+    $r->post('/w/{ws}/websites/{id}/pairing-code', [WebsiteController::class, 'pairingCode'], 'session');
+    $r->post('/w/{ws}/websites/{id}/rotate', [WebsiteController::class, 'rotate'], 'session');
+    $r->post('/w/{ws}/websites/{id}/disconnect', [WebsiteController::class, 'disconnect'], 'session');
+    $r->post('/w/{ws}/websites/{id}/delete', [WebsiteController::class, 'delete'], 'session');
+    $r->post('/w/{ws}/websites/{id}/settings/{section}', [WebsiteController::class, 'saveSettings'], 'session');
+
+    // WordPress connector (server-to-server).
+    $r->post('/api/v1/integration/pair', [IntegrationController::class, 'pair']);
+    $r->get('/api/v1/integration/config', [IntegrationController::class, 'config'], 'integration');
+    $r->post('/api/v1/integration/heartbeat', [IntegrationController::class, 'heartbeat'], 'integration');
+    $r->post('/api/v1/integration/rotate', [IntegrationController::class, 'rotate'], 'integration');
+    $r->post('/api/v1/integration/disconnect', [IntegrationController::class, 'disconnect'], 'integration');
+    $r->put('/api/v1/integration/settings', [IntegrationController::class, 'updateSettings'], 'integration');
 
     // Platform administration.
     $r->get('/admin', [AdminController::class, 'index'], 'session');

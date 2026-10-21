@@ -1,0 +1,8 @@
+.signalpost-panel { max-width: 960px; margin-top: 16px; }
+.signalpost-status { display: inline-block; padding: 4px 10px; border-radius: 999px; font-weight: 600; background: #f0f0f1; }
+.signalpost-status-connected { background: #e4f4e8; color: #1e6b38; }
+.signalpost-status-revoked { background: #fbe7e3; color: #a1311f; }
+.signalpost-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0 20px; }
+.signalpost-actions form { margin: 0; }
+.signalpost-steps li { margin-bottom: 6px; }
+.signalpost-diag th { width: 240px; }
