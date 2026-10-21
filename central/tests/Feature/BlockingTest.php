@@ -85,6 +85,11 @@ final class BlockingTest extends TestCase
         $session = $this->widget($this->site, 'POST', '/session', $token, [])->data();
         $this->assertFalse($session['chat']['available']);
         $this->assertSame(403, $this->widget($this->site, 'POST', '/contact', $token, ['name' => 'x'])->status);
+        // Blocked visitors cannot keep writing consent or analytics either.
+        $this->setSiteSettings($this->site, 'tracking', ['analytics_enabled' => true]);
+        $this->assertSame(403, $this->widget($this->site, 'POST', '/consent', $token, ['analytics' => true])->status);
+        $this->assertSame(403, $this->widget($this->site, 'POST', '/events', $token, ['events' => []])->status);
+        $this->assertSame(0, (int) $this->app->db()->value('SELECT COUNT(*) FROM consent_records'));
         // JavaScript cannot bypass enforcement: a direct API call with a fresh client ID is refused too.
         $this->assertSame(403, $this->widget($this->site, 'POST', '/messages', $token, ['client_message_id' => 'direct-api-call-1', 'body' => 'bypass'])->status);
     }

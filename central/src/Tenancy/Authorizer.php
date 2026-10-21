@@ -60,8 +60,15 @@ final class Authorizer
                 [$workspaceId, $this->app->clock->sql()]
             );
             if ($grant !== null) {
-                if (empty($request->attributes['poll'])) {
-                    $this->app->get(AuditLog::class)->workspace($workspaceId, $userId, 'support.access', 'route', substr($request->path, 0, 64), ['grant_id' => (int) $grant['id']], 'support');
+                // Every route read under a grant is audited (polling included), at most once per
+                // route per 10 minutes so polling does not flood the log.
+                $route = substr($request->path, 0, 64);
+                $recent = $db->value(
+                    "SELECT id FROM audit_logs WHERE workspace_id = ? AND actor_user_id = ? AND action = 'support.access' AND resource_id = ? AND created_at > ? LIMIT 1",
+                    [$workspaceId, $userId, $route, $this->app->clock->sql(-600)]
+                );
+                if ($recent === null) {
+                    $this->app->get(AuditLog::class)->workspace($workspaceId, $userId, 'support.access', 'route', $route, ['grant_id' => (int) $grant['id']], 'support');
                 }
                 return new WorkspaceContext($workspaceId, $grant['name'], $userId, Roles::SUPPORT, (int) $grant['owner_user_id']);
             }

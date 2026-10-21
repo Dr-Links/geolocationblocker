@@ -228,7 +228,7 @@
   }
 
   function markRead() {
-    if (!state.current || !state.lastMsgId) { return; }
+    if (!state.current || !state.lastMsgId || !CAN_REPLY) { return; }
     var id = state.current;
     request('POST', '/conversations/' + id + '/read', { message_id: state.lastMsgId }).then(function () {
       if (state.items[id]) { state.items[id].unread = false; renderList(); }

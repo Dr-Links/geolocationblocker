@@ -189,6 +189,9 @@ final class AuthController extends Controller
                 $userId = $this->app->get(AuthService::class)->createInvitedUser($inv['email'], (string) $request->input('password'), $data['display_name']);
                 $user = ['id' => $userId, 'email' => $inv['email']];
                 $wsId = $workspaces->acceptInvitation($token, $user);
+                if ($this->app->db()->value('SELECT status FROM users WHERE id = ?', [$userId]) !== 'active') {
+                    return Response::redirect('/login?ok=check_email');
+                }
                 $sessions = $this->app->get(SessionManager::class);
                 $created = $sessions->create($userId, $request);
                 $response = Response::redirect('/w/' . $wsId . '?ok=joined');

@@ -134,7 +134,14 @@ final class TenancyTest extends TestCase
         $this->assertSame(200, $carol->get('/invite/' . $token)->status);
         $res = $carol->post('/invite/' . $token, ['form' => ['_csrf' => $carol->cookies['sp_csrf'], 'display_name' => 'Carol', 'password' => 'carols-password-1', 'password_confirm' => 'carols-password-1']]);
         $this->assertSame(303, $res->status);
-        $this->assertSame("/w/{$this->wsA}?ok=joined", $res->headers['Location']);
+        // The link was visible to the inviter, so it does not prove mailbox control: verify by email first.
+        $this->assertSame('/login?ok=check_email', $res->headers['Location']);
+        $this->assertSame('unverified', $this->app->db()->value("SELECT status FROM users WHERE email = 'carol@example.com'"));
+        $verifyMail = end($this->app->get(Mailer::class)->sent);
+        $this->assertSame('carol@example.com', $verifyMail['to']);
+        preg_match('#token=([A-Za-z0-9_\-]+)#', $verifyMail['body'], $vm);
+        $carol->post('/verify-email', ['form' => ['token' => $vm[1], '_csrf' => $carol->cookies['sp_csrf']]]);
+        $carol = $this->loginAs('carol@example.com', 'carols-password-1');
         $this->assertSame(200, $carol->get("/w/{$this->wsA}")->status);
         $this->assertSame(404, $carol->get("/w/{$this->wsB}")->status);
         $this->assertSame('agent', $this->app->db()->value("SELECT m.role FROM workspace_members m JOIN users u ON u.id = m.user_id WHERE u.email = 'carol@example.com'"));
@@ -234,6 +241,37 @@ final class TenancyTest extends TestCase
         $res = $alice->submit('/workspaces', ['name' => 'Second']);
         $this->assertSame(403, $res->status);
         $this->assertSame(1, (int) $this->app->db()->value('SELECT COUNT(*) FROM workspaces WHERE owner_user_id = ?', [$this->a]));
+    }
+
+    public function testRevokedMemberCannotRejoinWithStalePendingInvitation(): void
+    {
+        $bob2 = $this->makeUser('carol@example.com');
+        $alice = $this->loginAs('alice@example.com');
+        $alice->submit("/w/{$this->wsA}/members/invite", ['email' => 'carol@example.com', 'role' => 'agent']);
+        $alice->submit("/w/{$this->wsA}/members/invite", ['email' => 'carol@example.com', 'role' => 'agent']);
+        $sent = $this->app->get(Mailer::class)->sent;
+        preg_match('#/invite/([A-Za-z0-9_\-]+)#', $sent[0]['body'], $first);
+        preg_match('#/invite/([A-Za-z0-9_\-]+)#', $sent[1]['body'], $second);
+        $carol = $this->loginAs('carol@example.com');
+        $this->assertSame(303, $carol->submit('/invite/' . $first[1])->status);
+        $member = (int) $this->app->db()->value('SELECT id FROM workspace_members WHERE user_id = ? AND workspace_id = ?', [$bob2, $this->wsA]);
+        $alice->submit("/w/{$this->wsA}/members/{$member}/revoke");
+        $this->assertSame(404, $carol->submit('/invite/' . $second[1])->status, 'stale invitation invalidated');
+        $this->assertSame('revoked', $this->app->db()->value('SELECT status FROM workspace_members WHERE id = ?', [$member]));
+    }
+
+    public function testSupportPollingReadsAreAuditedWithDeduplication(): void
+    {
+        $this->makeUser('root@example.com', true);
+        $this->loginAs('bob@example.com')->submit("/w/{$this->wsB}/support-grants", ['hours' => 1, 'reason' => 'help']);
+        $root = $this->loginAs('root@example.com');
+        for ($i = 0; $i < 3; $i++) {
+            $this->assertSame(200, $root->api('GET', "/api/v1/dashboard/w/{$this->wsB}/conversations")->status);
+        }
+        $this->assertSame(1, (int) $this->app->db()->value("SELECT COUNT(*) FROM audit_logs WHERE action = 'support.access' AND resource_id LIKE '%/conversations'"));
+        $this->app->clock->advance(601);
+        $root->api('GET', "/api/v1/dashboard/w/{$this->wsB}/conversations");
+        $this->assertSame(2, (int) $this->app->db()->value("SELECT COUNT(*) FROM audit_logs WHERE action = 'support.access' AND resource_id LIKE '%/conversations'"));
     }
 
     public function testPlatformSettingsAreValidatedAgainstSchema(): void

@@ -92,6 +92,9 @@ final class WidgetController extends Controller
         $tracking = $request->attributes['settings']['tracking'];
         $visitor = $this->visitor($request);
         $this->app->get(RateLimiter::class)->enforce('widget:consent:' . $visitor['id'], 20, 600);
+        if ($this->app->get(BlockService::class)->isBlocked((int) $visitor['id'])) {
+            BlockService::deny();
+        }
         $in = $request->json();
         if (!is_bool($in['analytics'] ?? null)) {
             throw HttpException::validation(['analytics' => 'Must be true or false.']);
@@ -112,6 +115,9 @@ final class WidgetController extends Controller
         $site = $request->attributes['website'];
         $visitor = $this->visitor($request);
         $this->app->get(RateLimiter::class)->enforce('widget:events:' . $visitor['id'], 60, 60);
+        if ($this->app->get(BlockService::class)->isBlocked((int) $visitor['id'])) {
+            BlockService::deny();
+        }
         $in = $request->json();
         $events = is_array($in['events'] ?? null) && array_is_list($in['events']) ? $in['events'] : [];
         if (count($events) > $this->app->config->int('limits.events_per_batch')) {

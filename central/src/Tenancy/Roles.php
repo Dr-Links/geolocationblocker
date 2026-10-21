@@ -21,7 +21,7 @@ final class Roles
         self::OWNER => ['*'],
         self::AGENT => [
             'workspace.view',
-            'conversations.read', 'conversations.reply', 'conversations.update',
+            'conversations.read', 'conversations.mark_read', 'conversations.reply', 'conversations.update',
             'visitors.read', 'visitors.block',
             'websites.read',
         ],

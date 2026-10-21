@@ -77,6 +77,22 @@ final class FoundationTest extends TestCase
         $this->assertSame(403, $browser->get('/api/v1/health', ['headers' => ['X-Forwarded-Proto' => 'https']])->status);
     }
 
+    public function testFreshDatabaseRedirectsToInstaller(): void
+    {
+        // Simulate a brand-new installation by pointing at an empty schema-less table set.
+        $this->app->db()->pdo()->exec('RENAME TABLE users TO users_tmp_fresh');
+        try {
+            $res = $this->request('GET', '/login');
+            $this->assertSame(303, $res->status);
+            $this->assertSame('/install', $res->headers['Location']);
+            $api = $this->request('GET', '/api/v1/dashboard/w/1/conversations');
+            $this->assertNotSame(303, $api->status, 'APIs never redirect to the installer');
+            $this->assertStringStartsWith('application/json', $api->headers['Content-Type']);
+        } finally {
+            $this->app->db()->pdo()->exec('RENAME TABLE users_tmp_fresh TO users');
+        }
+    }
+
     public function testSecurityHeadersOnHtml(): void
     {
         $res = $this->request('GET', '/definitely-missing');

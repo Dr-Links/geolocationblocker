@@ -203,6 +203,8 @@ final class WebsiteIntegrationTest extends TestCase
         $this->assertSame(200, $this->api('GET', '/api/v1/integration/config', $old)->status, 'old credential valid during grace');
         $this->assertSame(403, $this->api('POST', '/api/v1/integration/rotate', $old)->status, 'superseded credential cannot rotate');
         $this->assertSame(403, $this->api('PUT', '/api/v1/integration/settings', $old, ['widget' => ['enabled' => false]])->status);
+        $this->assertSame(403, $this->api('POST', '/api/v1/integration/disconnect', $old)->status, 'superseded credential cannot disconnect');
+        $this->assertSame(200, $this->api('GET', '/api/v1/integration/config', $new)->status);
 
         $this->app->clock->advance(601);
         $this->assertSame(401, $this->api('GET', '/api/v1/integration/config', $old)->status, 'old credential expired after grace');

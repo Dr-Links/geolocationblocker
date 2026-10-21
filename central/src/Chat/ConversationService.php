@@ -306,7 +306,9 @@ final class ConversationService
             $db->exec('UPDATE conversations SET last_message_id = ?, last_message_at = ?, status = ?, closed_at = IF(? = \'open\', NULL, closed_at),
                               assigned_user_id = COALESCE(assigned_user_id, ?), updated_at = ? WHERE id = ?',
                 [$msgId, $now, $status, $status, $ctx->userId, $now, $conversationId]);
-            $this->markRead($ctx, $conversationId, $msgId);
+            if ($ctx->can('conversations.mark_read')) {
+                $this->markRead($ctx, $conversationId, $msgId);
+            }
             $message = $db->one('SELECT * FROM messages WHERE id = ?', [$msgId]);
             $this->notifier()->messageCreated($conv, $message);
             return ['message' => $this->shapeOne($message), 'duplicate' => false];

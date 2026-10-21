@@ -73,12 +73,21 @@ final class AuthService
         return ['user_id' => $userId, 'needs_verification' => $verify];
     }
 
-    /** Creates an active, verified account during invitation acceptance. */
-    public function createInvitedUser(string $email, string $password, string $name): int
+    /**
+     * Creates an account during invitation acceptance. Because the inviter can
+     * see (and forward) the invitation link, the link alone does not prove the
+     * invitee controls the mailbox: when email verification is required the
+     * account stays unverified until the emailed verification link is used.
+     */
+    public function createInvitedUser(string $email, string $password, string $name, ?bool $requireVerification = null): int
     {
         $this->assertPassword($password, $email);
-        $id = $this->insertUser($email, $password, $name, 'active', true, false);
+        $verify = $requireVerification ?? (bool) $this->app->get(PlatformSettings::class)->get('require_email_verification');
+        $id = $this->insertUser($email, $password, $name, $verify ? 'unverified' : 'active', !$verify, false);
         $this->app->get(AuditLog::class)->platform($id, 'user.registered', 'user', $id, ['via' => 'invitation']);
+        if ($verify) {
+            $this->sendVerification($id, $email);
+        }
         return $id;
     }
 
@@ -92,18 +101,24 @@ final class AuthService
         $ip = $this->app->clientIp($request);
         $window = $this->app->config->int('security.login_window_minutes') * 60;
         $max = $this->app->config->int('security.login_max_attempts');
-        $emailBucket = 'login:email:' . strtolower($email);
+        $email = strtolower($email);
         $ipBucket = 'login:ip:' . $ip;
+        if (filter_var($email, FILTER_VALIDATE_EMAIL) === false) {
+            $limiter->hit($ipBucket, PHP_INT_MAX, $window);
+            throw new HttpException(401, 'invalid_credentials', 'Invalid email or password.');
+        }
+        $user = $this->app->db()->one('SELECT id, email, password_hash, status FROM users WHERE email = ?', [$email]);
+        // Throttle per account (resolved user ID) so alternative spellings cannot reset the counter.
+        $accountBucket = $user !== null ? 'login:user:' . $user['id'] : 'login:email:' . $email;
 
-        if ($limiter->count($emailBucket, $window) >= $max || $limiter->count($ipBucket, $window) >= $max * 6) {
-            $this->securityEvent('login_throttled', null, $ip);
+        if ($limiter->count($accountBucket, $window) >= $max || $limiter->count($ipBucket, $window) >= $max * 6) {
+            $this->securityEvent('login_throttled', $user ? (int) $user['id'] : null, $ip);
             throw new HttpException(429, 'rate_limited', 'Too many sign-in attempts. Please wait a few minutes and try again.');
         }
 
-        $user = $this->app->db()->one('SELECT id, email, password_hash, status FROM users WHERE email = ?', [strtolower($email)]);
         $ok = Passwords::verify($password, $user['password_hash'] ?? Passwords::dummyHash());
         if (!$ok || $user === null) {
-            $limiter->hit($emailBucket, PHP_INT_MAX, $window);
+            $limiter->hit($accountBucket, PHP_INT_MAX, $window);
             $limiter->hit($ipBucket, PHP_INT_MAX, $window);
             $this->securityEvent('login_failed', $user ? (int) $user['id'] : null, $ip);
             throw new HttpException(401, 'invalid_credentials', 'Invalid email or password.');
@@ -115,7 +130,7 @@ final class AuthService
         if ($user['status'] === 'unverified') {
             throw new HttpException(403, 'email_unverified', 'Please verify your email address first. Check your inbox or request a new link.');
         }
-        $limiter->clear($emailBucket);
+        $limiter->clear($accountBucket);
         if (Passwords::needsRehash($user['password_hash'])) {
             $this->app->db()->exec('UPDATE users SET password_hash = ? WHERE id = ?', [Passwords::hash($password), $user['id']]);
         }

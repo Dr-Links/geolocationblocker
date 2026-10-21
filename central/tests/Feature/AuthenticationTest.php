@@ -96,6 +96,19 @@ final class AuthenticationTest extends TestCase
         $this->assertSame(303, $b->post('/login', ['form' => ['email' => 'ann@example.com', 'password' => self::PASSWORD, '_csrf' => $b->cookies['sp_csrf']]])->status);
     }
 
+    public function testThrottleCannotBeBypassedWithEquivalentEmailSpellings(): void
+    {
+        $this->makeUser('victim@example.com');
+        $b = $this->client();
+        $b->get('/login');
+        foreach (['victím@example.com', 'vìctim@example.com', 'VICTIM@example.com', 'victim@EXAMPLE.com', 'victim@example.com', 'Victim@Example.com', 'vIctim@example.com'] as $spelling) {
+            $b->post('/login', ['form' => ['email' => $spelling, 'password' => 'wrong-password-x', '_csrf' => $b->cookies['sp_csrf']]]);
+        }
+        $res = $b->post('/login', ['form' => ['email' => 'victim@example.com', 'password' => self::PASSWORD, '_csrf' => $b->cookies['sp_csrf']]]);
+        $this->assertSame(429, $res->status, 'accent variants do not reach the account; case variants share its bucket');
+        $this->assertNull($this->app->db()->value("SELECT id FROM users WHERE email = 'victím@example.com'"));
+    }
+
     public function testSuspendedAndUnverifiedAccountsCannotSignIn(): void
     {
         $this->makeUser('sus@example.com', false, 'suspended');

@@ -151,6 +151,9 @@ final class WorkspaceService
             if ($n !== 1) {
                 throw HttpException::badRequest('This invitation is invalid or has expired.');
             }
+            // Any other pending invitation for this address is now obsolete.
+            $db->exec('UPDATE workspace_invitations SET revoked_at = ? WHERE workspace_id = ? AND email = ? AND accepted_at IS NULL AND revoked_at IS NULL',
+                [$now, $inv['workspace_id'], strtolower($inv['email'])]);
             $db->exec(
                 "INSERT INTO workspace_members (workspace_id, user_id, role, status, created_at, updated_at) VALUES (?, ?, ?, 'active', ?, ?)
                  ON DUPLICATE KEY UPDATE role = VALUES(role), status = 'active', updated_at = VALUES(updated_at)",
@@ -183,6 +186,12 @@ final class WorkspaceService
             throw HttpException::forbidden('The primary owner cannot be removed.');
         }
         $this->app->db()->exec("UPDATE workspace_members SET status = 'revoked', updated_at = ? WHERE id = ? AND workspace_id = ?", [$this->app->clock->sql(), $memberId, $ctx->workspaceId]);
+        // A removed member must not be able to rejoin with an older, still-pending invitation.
+        $this->app->db()->exec(
+            'UPDATE workspace_invitations i JOIN users u ON u.email = i.email SET i.revoked_at = ?
+              WHERE i.workspace_id = ? AND u.id = ? AND i.accepted_at IS NULL AND i.revoked_at IS NULL',
+            [$this->app->clock->sql(), $ctx->workspaceId, $member['user_id']]
+        );
         $this->app->get(AuditLog::class)->workspace($ctx->workspaceId, $ctx->userId, 'member.revoked', 'member', $memberId, ['target_user_id' => (int) $member['user_id']]);
     }
 

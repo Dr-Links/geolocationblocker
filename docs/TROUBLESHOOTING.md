@@ -16,7 +16,7 @@ Chat → Diagnostics** (WordPress). Error pages show a reference such as
 | 404 for every route except `/` | `.htaccess` not applied: `mod_rewrite`/AllowOverride disabled. Ask the host to enable it, or use Nginx rules routing to `public/index.php`. |
 | `/install` shows 404 | An account already exists — sign in instead. Use "Forgot password" if needed. |
 | Setup token file not created | `storage/` not writable by PHP. Fix permissions (755/775). |
-| No invitation/reset emails | Host's `mail()` blocked or emails rejected (SPF/DKIM). Invitation links are shown to the owner after inviting; copy and send them manually. Check cPanel → Email Deliverability. |
+| No invitation/reset emails | Host's `mail()` blocked or emails rejected (SPF/DKIM). Invitation links are shown to the owner after inviting and can be sent manually, but with email verification required the invitee also needs the verification email. Fix delivery (cPanel → Email Deliverability: SPF/DKIM), or — as a temporary measure only — turn off verification in Platform admin → Settings. |
 | "Too many sign-in attempts" | Wait 15 minutes. Repeated failures are listed under Platform admin → Audit & security. |
 | Health says migrations pending | Run them from Health (after a backup) or `php bin/console migrate`. |
 | Last cron run "never" | Configure the cron job (docs/CRON.md); check the PHP path in the command. |

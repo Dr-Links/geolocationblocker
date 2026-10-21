@@ -93,7 +93,7 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
 
     protected function makeUser(string $email, bool $admin = false, string $status = 'active', string $name = 'Test User'): int
     {
-        $id = $this->app->get(\Signalpost\Auth\AuthService::class)->createInvitedUser($email, self::PASSWORD, $name);
+        $id = $this->app->get(\Signalpost\Auth\AuthService::class)->createInvitedUser($email, self::PASSWORD, $name, false);
         $this->app->db()->exec('UPDATE users SET is_platform_admin = ?, status = ? WHERE id = ?', [$admin ? 1 : 0, $status, $id]);
         return $id;
     }

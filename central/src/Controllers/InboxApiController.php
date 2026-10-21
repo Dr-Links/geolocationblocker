@@ -84,7 +84,7 @@ final class InboxApiController extends Controller
 
     public function read(Request $request): Response
     {
-        $ctx = $this->ctx($request, 'conversations.read');
+        $ctx = $this->ctx($request, 'conversations.mark_read');
         $mid = $request->json()['message_id'] ?? 0;
         $this->app->get(ConversationService::class)->markRead($ctx, $request->intParam('id'), is_int($mid) ? max(0, $mid) : 0);
         return Response::json(['ok' => true]);

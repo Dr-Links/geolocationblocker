@@ -88,21 +88,33 @@ final class App
             $response = $this->dispatch($request);
         } catch (HttpException $e) {
             $response = $this->errorResponse($request, $e);
+        } catch (\PDOException $e) {
+            // Fresh installation: the schema does not exist yet. Send people to the installer.
+            if (($e->errorInfo[0] ?? $e->getCode()) === '42S02' && $request->method === 'GET'
+                && !str_starts_with($request->path, '/api/') && $request->path !== '/install') {
+                return $this->applySecurityHeaders($request, Response::redirect('/install'));
+            }
+            $response = $this->unhandled($request, $e);
         } catch (\Throwable $e) {
-            $ref = bin2hex(random_bytes(6));
-            $this->logger()->error('Unhandled exception', [
-                'ref' => $ref,
-                'type' => $e::class,
-                'message' => $e->getMessage(),
-                'file' => basename($e->getFile()) . ':' . $e->getLine(),
-                'path' => $request->path,
-            ]);
-            $response = $this->errorResponse(
-                $request,
-                new HttpException(500, 'server_error', 'An internal error occurred. Reference: ' . $ref)
-            );
+            $response = $this->unhandled($request, $e);
         }
         return $this->applySecurityHeaders($request, $response);
+    }
+
+    private function unhandled(Request $request, \Throwable $e): Response
+    {
+        $ref = bin2hex(random_bytes(6));
+        $this->logger()->error('Unhandled exception', [
+            'ref' => $ref,
+            'type' => $e::class,
+            'message' => $e->getMessage(),
+            'file' => basename($e->getFile()) . ':' . $e->getLine(),
+            'path' => $request->path,
+        ]);
+        return $this->errorResponse(
+            $request,
+            new HttpException(500, 'server_error', 'An internal error occurred. Reference: ' . $ref)
+        );
     }
 
     private function dispatch(Request $request): Response

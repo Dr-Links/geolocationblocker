@@ -299,6 +299,7 @@ final class ChatTest extends TestCase
         $this->assertSame(200, $root->api('GET', "/api/v1/dashboard/w/{$this->ws}/conversations/{$conv}")->status);
         $this->assertSame(403, $root->api('POST', "/api/v1/dashboard/w/{$this->ws}/conversations/{$conv}/messages", ['client_message_id' => 'root-000001', 'body' => 'x'])->status);
         $this->assertSame(403, $root->api('POST', "/api/v1/dashboard/w/{$this->ws}/conversations/{$conv}/status", ['status' => 'closed'])->status);
+        $this->assertSame(403, $root->api('POST', "/api/v1/dashboard/w/{$this->ws}/conversations/{$conv}/read", ['message_id' => 1])->status, 'support is strictly read-only');
     }
 
     public function testAuditLogsNeverContainMessageBodies(): void

@@ -9,7 +9,6 @@ central/storage/setup-token.txt
 central/vendor/
 node_modules/
 # Build output is produced by build/build.sh
-dist/*.zip
 .phpunit.cache/
 central/.phpunit.cache/
 *.log

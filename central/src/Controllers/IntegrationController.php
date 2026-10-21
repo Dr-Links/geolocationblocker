@@ -67,6 +67,9 @@ final class IntegrationController extends Controller
 
     public function disconnect(Request $request): Response
     {
+        if ($request->attributes['credential_in_grace']) {
+            throw HttpException::forbidden('This credential has been superseded. Use the newest credential.');
+        }
         $site = $request->attributes['website'];
         $this->app->get(CredentialService::class)->revokeAll((int) $site['id']);
         $this->app->db()->exec("UPDATE websites SET status = 'disconnected', updated_at = ? WHERE id = ?", [$this->app->clock->sql(), $site['id']]);

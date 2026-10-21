@@ -11,7 +11,8 @@ authentication and never accepts another surface's credentials.
 | WordPress integration | `/api/v1/integration/…` | `Authorization: Bearer spk_<prefix>.<secret>` | Exactly one website, derived from the credential |
 | Visitor widget | `/api/v1/widget/{siteKey}/…` | `X-Visitor-Token` (opaque random token) | Exactly one visitor on one website |
 
-The widget prefix contains only visitor-facing endpoints; administrative and
+Blocked visitors are refused on every visitor write (messages, contact,
+consent, analytics). The widget prefix contains only visitor-facing endpoints; administrative and
 integration endpoints are not reachable through it. The browser `Origin`
 header is validated on widget requests and used for CORS, but it is **never**
 treated as authentication.
@@ -52,8 +53,10 @@ members, suspended accounts and workspaces, and support-grant expiry.
 
 The platform owner has **no implicit access** to workspace data. Support
 grants are created by the workspace owner, limited to a maximum duration
-(platform setting, default 24 h), read-only, revocable, and every page viewed
-under a grant is written to the workspace's audit history.
+(platform setting, default 24 h), strictly read-only (no replies, status
+changes or read markers), revocable, and every route read under a grant —
+including polling endpoints — is written to the workspace's audit history
+(deduplicated to one entry per route per 10 minutes).
 
 ## Authentication
 
@@ -71,12 +74,19 @@ under a grant is written to the workspace's audit history.
 * CSRF: session-bound token for authenticated forms and the `X-CSRF-Token`
   header for JSON; double-submit cookie for pre-login forms (login CSRF is
   covered); Origin/Referer must match `app.url` on writes.
-* Login throttling: 5 failures per email per 15 min, 30 per IP; generic error
-  messages; failures recorded as masked security events.
+* Login throttling: 5 failures per account (keyed on the resolved user ID) per
+  15 min, 30 per IP; malformed emails are rejected before lookup and emails are
+  compared exactly (binary collation), so alternative spellings cannot reset
+  the counter; generic error messages; failures recorded as masked security
+  events.
 * Password reset: single-use 256-bit token, stored hashed, 1 h lifetime, no
   account enumeration.
-* Email verification for self-registration (platform setting). Invitation
-  acceptance proves mailbox control. Registration defaults to invitation-only.
+* Email verification for self-registration (platform setting). Because the
+  inviting owner can see the invitation link, accepting it does **not** prove
+  mailbox control: when verification is required, accounts created through an
+  invitation stay unverified until the emailed verification link is used.
+  Accepting an invitation or removing a member invalidates that address's
+  other pending invitations. Registration defaults to invitation-only.
 * Multi-factor authentication is **not implemented** in this release (planned
   extension).
 
@@ -88,8 +98,8 @@ under a grant is written to the workspace's audit history.
   secret is stored; constant-time comparison. Shown to nobody — only the
   plugin receives it, once, over HTTPS.
 * Rotation: requested from the dashboard and completed server-to-server by the
-  plugin; the previous credential stays valid for 10 minutes and cannot
-  rotate or change settings during that grace period.
+  plugin; the previous credential stays valid for 10 minutes for reads only
+  and cannot rotate, change settings or disconnect during that grace period.
 * Revocation: dashboard "Disconnect", plugin "Disconnect" or uninstall.
 * Failures are rate-limited per IP and recorded as security events.
 
@@ -177,8 +187,10 @@ under a grant is written to the workspace's audit history.
   lives in that site's `localStorage`). A script injected into the customer's
   site could read it and act as that visitor in their own conversation. It
   cannot access other visitors, operators or the dashboard.
-* Security tests were performed with automated tests and manual review; no
-  independent penetration test has been carried out.
+* Security testing consisted of automated tests, an internal adversarial code
+  review (whose six medium/low findings were fixed and covered by regression
+  tests — see docs/TEST_REPORT.md) and manual review. No independent
+  penetration test has been carried out.
 
 ## Reporting a vulnerability
 

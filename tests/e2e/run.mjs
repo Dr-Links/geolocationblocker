@@ -1,6 +1,17 @@
 // Browser E2E scenario. Run via ./run.sh (sets up WordPress + central first).
 import { chromium } from 'playwright';
 import { execSync } from 'node:child_process';
+import { createRequire } from 'node:module';
+const axeSource = (await import('node:fs')).readFileSync(createRequire(import.meta.url).resolve('axe-core/axe.min.js'), 'utf8');
+
+/** Runs axe-core and returns serious/critical violations (optionally within a shadow root host). */
+async function axe(page, context) {
+  await page.addScriptTag({ content: axeSource });
+  return page.evaluate(async (ctx) => {
+    const r = await window.axe.run(ctx ? { include: [[ctx]] } : document, { resultTypes: ['violations'] });
+    return r.violations.filter(v => v.impact === 'serious' || v.impact === 'critical').map(v => v.id + ' (' + v.nodes.length + '): ' + v.nodes[0].target.join(' '));
+  }, context || null);
+}
 
 const { CENTRAL_URL, WP_URL, PAIRING_CODE, WS_ID, HELPER, WPCLI_CMD } = process.env;
 const results = [];
@@ -192,6 +203,27 @@ try {
   check('panel is full-screen on small screens', box && box.width >= 370 && box.height >= 700, JSON.stringify(box));
   check('launcher hidden behind full-screen panel', await mobile.locator('#signalpost-chat .sp-launcher').isHidden());
   await mobile.screenshot({ path: 'artifacts/widget-mobile.png' });
+
+  // ---------------------------------------------------------------- accessibility (axe-core)
+  console.log('== Accessibility audit (axe-core, serious/critical only)');
+  // The dashboard's CSP (correctly) blocks injected scripts; the audit context bypasses it.
+  const a11y = await (await browser.newContext({ bypassCSP: true })).newPage();
+  await a11y.goto(`${CENTRAL_URL}/login`);
+  let v = await axe(a11y);
+  check('login page: no serious a11y violations', v.length === 0, v.join('; '));
+  await a11y.fill('#f-email', 'owner@example.test');
+  await a11y.fill('#f-password', 'integration-pass-1');
+  await a11y.click('button[type=submit]');
+  await a11y.waitForURL(/\/w\/\d+/);
+  for (const path of ['', '/inbox', '/live', '/visitors', '/websites', '/members', '/privacy']) {
+    await a11y.goto(`${CENTRAL_URL}/w/${WS_ID}${path}`);
+    await a11y.waitForTimeout(800);
+    v = await axe(a11y);
+    check(`dashboard ${path || '/overview'}: no serious a11y violations`, v.length === 0, v.join('; '));
+  }
+  await mobile.setViewportSize({ width: 1280, height: 800 });
+  v = await axe(mobile, '#signalpost-chat');
+  check('open widget: no serious a11y violations', v.length === 0, v.join('; '));
 
   check('no JavaScript errors on the visitor page', pageErrors.length === 0, pageErrors.join(' | '));
   check('no JavaScript/CSP errors in the dashboard', opErrors.length === 0, opErrors.join(' | '));
