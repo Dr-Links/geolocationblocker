@@ -258,3 +258,4 @@ legend { font-weight: 700; padding: 0 6px; }
 .thread-head [data-back] { display: none; }
 @media (max-width: 860px) { .thread-head [data-back] { display: inline-flex; } }
 .thread-head .pill { text-transform: capitalize; }
+.narrow-form { max-width: 460px; }

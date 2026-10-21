@@ -15,6 +15,7 @@ use Signalpost\Controllers\VisitorController;
 use Signalpost\Controllers\WebsiteController;
 use Signalpost\Controllers\WidgetController;
 use Signalpost\Controllers\MembersController;
+use Signalpost\Controllers\PrivacyController;
 use Signalpost\Controllers\WorkspaceController;
 use Signalpost\Http\Router;
 
@@ -99,6 +100,13 @@ return static function (Router $r): void {
     $r->post('/w/{ws}/visitors/{id}/unblock', [VisitorController::class, 'unblock'], 'session');
     $r->post('/w/{ws}/visitors/{id}/delete', [VisitorController::class, 'delete'], 'session');
     $r->get('/w/{ws}/blocks', [VisitorController::class, 'blocks'], 'session');
+    $r->post('/w/{ws}/visitors/{id}/export', [PrivacyController::class, 'exportVisitor'], 'session');
+
+    // Privacy, retention, export and deletion.
+    $r->get('/w/{ws}/privacy', [PrivacyController::class, 'index'], 'session');
+    $r->post('/w/{ws}/privacy/cleanup', [PrivacyController::class, 'cleanup'], 'session');
+    $r->post('/w/{ws}/privacy/export', [PrivacyController::class, 'export'], 'session');
+    $r->post('/w/{ws}/privacy/delete-workspace', [PrivacyController::class, 'deleteWorkspace'], 'session');
 
     // Dashboard JSON API (session + X-CSRF-Token on writes).
     $d = '/api/v1/dashboard/w/{ws}';

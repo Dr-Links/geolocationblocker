@@ -105,6 +105,11 @@ $canBlock = $ctx->can('visitors.block');
 
 <?php if ($ctx->can('privacy.manage')): ?>
 <section class="card">
+  <h2>Export this visitor's data</h2>
+  <p>Downloads everything held about this visitor ID (profile, submissions, messages, page views, consent records) as JSON, for example to answer an access request. Recorded in the audit history.</p>
+  <form method="post" action="<?= $base ?>/visitors/<?= (int) $v['id'] ?>/export"><input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>"><button class="btn">Export visitor data</button></form>
+</section>
+<section class="card">
   <h2>Delete this visitor's data</h2>
   <p>Deletes the profile, conversations, messages, analytics, contact submissions and blocks for this visitor ID. Consent records are kept (detached from the profile) until their retention period ends. Backups may retain data until they expire.</p>
   <form method="post" action="<?= $base ?>/visitors/<?= (int) $v['id'] ?>/delete" data-confirm="Permanently delete all data for this visitor?">

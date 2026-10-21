@@ -35,6 +35,13 @@
     });
   });
 
+  // Confirmation for a single destructive button within a form.
+  document.querySelectorAll('[data-confirm-click]').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      if (!window.confirm(btn.getAttribute('data-confirm-click'))) { e.preventDefault(); }
+    });
+  });
+
   // Auto-submit selects (e.g. role changes).
   document.querySelectorAll('select[data-autosubmit]').forEach(function (sel) {
     sel.addEventListener('change', function () { sel.form.submit(); });

@@ -56,6 +56,11 @@ final class Browser
             $opts['secure'] ?? false,
         );
         $response = $this->app->handle($request);
+        if ($response->stream !== null) {
+            ob_start();
+            ($response->stream)();
+            $response->body = (string) ob_get_clean();
+        }
         foreach ($response->cookies as $c) {
             $expires = $c['options']['expires'] ?? null;
             if ($c['value'] === '' || ($expires !== null && $expires > 0 && $expires < time())) {

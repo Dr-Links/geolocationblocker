@@ -8,6 +8,8 @@ final class Response
 {
     /** @var array<int,array{name:string,value:string,options:array}> */
     public array $cookies = [];
+    /** When set, send() calls this to stream the body instead of echoing $body. */
+    public ?\Closure $stream = null;
 
     public function __construct(
         public string $body = '',
@@ -81,6 +83,21 @@ final class Response
                 setcookie($c['name'], $c['value'], $c['options']);
             }
         }
+        if ($this->stream !== null) {
+            ($this->stream)();
+            return;
+        }
         echo $this->body;
+    }
+
+    public static function download(\Closure $stream, string $filename, string $contentType = 'application/json; charset=utf-8'): self
+    {
+        $r = new self('', 200, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'attachment; filename="' . preg_replace('/[^A-Za-z0-9._-]/', '_', $filename) . '"',
+            'Cache-Control' => 'no-store',
+        ]);
+        $r->stream = $stream;
+        return $r;
     }
 }

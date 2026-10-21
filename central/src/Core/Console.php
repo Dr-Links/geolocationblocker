@@ -23,6 +23,9 @@ final class Console
                 'migrate' => $this->migrate(),
                 'migrate:status' => $this->migrateStatus(),
                 'create-owner' => $this->createOwner($opts),
+                'cron:run' => $this->cronRun(),
+                'cleanup' => $this->cleanup($opts),
+                'geo:import' => $this->geoImport($args[1] ?? ''),
                 default => $this->help(),
             };
         } catch (\Throwable $e) {
@@ -39,6 +42,10 @@ Signalpost console
   key:generate                 Print a new random application key for config.php
   migrate                      Apply pending database migrations
   migrate:status               List applied and pending migrations
+  cron:run                     Run scheduled maintenance (retention cleanup). Use from cPanel cron.
+  cleanup [--dry-run] [--workspace=ID]
+                               Run retention cleanup now; --dry-run only counts
+  geo:import FILE.csv          Import an IP-to-country CSV (start_ip,end_ip,country_code)
   create-owner --email=E --name=N --workspace=W
                                Create the first platform owner (prompts for the password;
                                or set SIGNALPOST_OWNER_PASSWORD for non-interactive use)
@@ -102,6 +109,47 @@ TXT;
         }
         @unlink($this->app->config->get('paths.storage') . '/setup-token.txt');
         echo "Platform owner created (user #{$id}). You can sign in now.\n";
+        return 0;
+    }
+
+    private function cronRun(): int
+    {
+        $lock = fopen($this->app->config->get('paths.storage') . '/cache/cron.lock', 'c');
+        if ($lock === false || !flock($lock, LOCK_EX | LOCK_NB)) {
+            echo "Another cron run is in progress.\n";
+            return 0;
+        }
+        $report = $this->app->get(\Signalpost\Privacy\RetentionService::class)->run(false);
+        $this->app->get(\Signalpost\Admin\PlatformSettings::class)->setState('last_cron_run', $this->app->clock->sql());
+        $this->app->logger()->info('cron run', ['totals' => $report['totals'], 'complete' => $report['complete']]);
+        echo 'Cleanup: ' . json_encode($report['totals']) . ($report['complete'] ? '' : ' (more remains; next run continues)') . "\n";
+        flock($lock, LOCK_UN);
+        return 0;
+    }
+
+    private function cleanup(array $opts): int
+    {
+        $dry = isset($opts['dry-run']);
+        $ws = isset($opts['workspace']) && is_string($opts['workspace']) && ctype_digit($opts['workspace']) ? (int) $opts['workspace'] : null;
+        $report = $this->app->get(\Signalpost\Privacy\RetentionService::class)->run($dry, $ws);
+        echo ($dry ? "Dry run (nothing deleted). Eligible:\n" : "Deleted:\n");
+        foreach ($report['totals'] as $k => $n) {
+            echo sprintf("  %-24s %d\n", $k, $n);
+        }
+        if (!$report['complete']) {
+            echo "More eligible data remains; run again.\n";
+        }
+        return 0;
+    }
+
+    private function geoImport(string $file): int
+    {
+        if ($file === '' || !is_file($file)) {
+            fwrite(STDERR, "Usage: geo:import FILE.csv\n");
+            return 1;
+        }
+        $n = $this->app->get(\Signalpost\Visitors\GeoService::class)->import($file);
+        echo "Imported {$n} ranges. Set 'geo' => ['provider' => 'table'] in config.php to use them.\n";
         return 0;
     }
 
