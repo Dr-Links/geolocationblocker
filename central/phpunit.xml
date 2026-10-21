@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         cacheDirectory=".phpunit.cache"
+         failOnWarning="true"
+         failOnRisky="true">
+    <testsuites>
+        <testsuite name="unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <!-- Override with real environment variables; these are local-dev defaults only. -->
+        <env name="SP_TEST_DB_HOST" value="127.0.0.1" force="false"/>
+        <env name="SP_TEST_DB_PORT" value="3306" force="false"/>
+        <env name="SP_TEST_DB_NAME" value="lc_test" force="false"/>
+        <env name="SP_TEST_DB_USER" value="lc" force="false"/>
+        <env name="SP_TEST_DB_PASSWORD" value="lc_local_dev" force="false"/>
+    </php>
+</phpunit>

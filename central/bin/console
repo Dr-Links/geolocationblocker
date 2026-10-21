@@ -1,0 +1,11 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+if (PHP_SAPI !== 'cli') {
+    exit(1);
+}
+
+$factory = require dirname(__DIR__) . '/bootstrap.php';
+exit((new \Signalpost\Core\Console($factory()))->run(array_slice($argv, 1)));

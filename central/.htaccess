@@ -1,0 +1,10 @@
+# Only public/ should be web-accessible. If the host forces this directory as
+# the document root, deny everything except the public front controller.
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^public/ - [L]
+    RewriteRule ^ - [F]
+</IfModule>
+<IfModule !mod_rewrite.c>
+    Require all denied
+</IfModule>

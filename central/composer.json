@@ -1,0 +1,30 @@
+{
+    "name": "signalpost/central",
+    "description": "Signalpost central live chat application (development manifest; production needs no Composer packages).",
+    "type": "project",
+    "license": "proprietary",
+    "require": {
+        "php": ">=8.1",
+        "ext-pdo": "*",
+        "ext-pdo_mysql": "*",
+        "ext-json": "*",
+        "ext-mbstring": "*",
+        "ext-openssl": "*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^10.5"
+    },
+    "autoload": {
+        "psr-4": { "Signalpost\\": "src/" }
+    },
+    "autoload-dev": {
+        "psr-4": { "Signalpost\\Tests\\": "tests/" }
+    },
+    "config": {
+        "platform": { "php": "8.1.0" },
+        "sort-packages": true
+    },
+    "scripts": {
+        "test": "phpunit"
+    }
+}

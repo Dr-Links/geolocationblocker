@@ -1,0 +1,19 @@
+# Signalpost front controller (Apache / LiteSpeed on cPanel)
+Options -Indexes
+DirectoryIndex index.php
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    # Pass Authorization header through to PHP (needed by CGI/FPM handlers).
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<IfModule mod_headers.c>
+    <FilesMatch "\.(js|css)$">
+        Header set Cache-Control "public, max-age=3600"
+        Header set X-Content-Type-Options "nosniff"
+    </FilesMatch>
+</IfModule>

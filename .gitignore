@@ -1,0 +1,16 @@
+# Secrets and runtime data
+central/config/config.php
+central/storage/logs/*
+central/storage/mail/*
+central/storage/cache/*
+central/storage/setup-token.txt
+!central/storage/**/.gitkeep
+# Dependencies (development only)
+central/vendor/
+node_modules/
+# Build output is produced by build/build.sh
+dist/*.zip
+.phpunit.cache/
+central/.phpunit.cache/
+*.log
+.env
