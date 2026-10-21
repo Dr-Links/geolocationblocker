@@ -1,0 +1,13 @@
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+deploy/cpanel/out/
+apps/mobile/.expo/
+apps/mobile/android/
+apps/mobile/ios/
+secrets/
+coverage/

@@ -30,6 +30,12 @@ A multi-tenant email client platform. Each **platform user** (one normalised Gma
 | Updates | Controlled CI/CD, migrations, rollback; mobile OTA limits explained | `06` §updates |
 | Testing | Full plan incl. isolation, duplicate-send, expiry, deletion, restore | `09-testing-plan.md` |
 
+## Decision (21 Oct 2026)
+
+You chose to host on your **cPanel account**. Milestone 1 (accounts, admin, approval, expiry) is built for it: one Node.js app per subdomain via *Setup Node.js App*, cPanel PostgreSQL (13+, no extensions, no superuser) and a 1-minute cron job. See `docs/milestones/M1.md`.
+
+The concerns below still apply from **Milestone 2** onward (mailbox sync and sending). Before M2 we will measure your account with `node dist/cli.js check:outbound`. If outbound mail ports are open, M2 will use a **cron-driven sync**: each run polls mailboxes for about 50 seconds and exits, so it needs no permanent process. New mail then arrives within about 1–2 minutes instead of instantly, and sending happens on the next minute after the undo window. If the ports are blocked, we will discuss the smallest workaround with you then.
+
 ## 1.2 Hosting feasibility: shared cPanel
 
 I cannot inspect your hosting account from here, so this assessment is based on how cPanel shared hosting normally behaves. **Section 1.4 is a checklist you can run to confirm or overturn it for your specific plan.**

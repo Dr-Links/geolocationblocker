@@ -1,0 +1,18 @@
+{
+  "name": "email-platform",
+  "private": true,
+  "workspaces": [
+    "packages/shared",
+    "apps/backend",
+    "apps/admin-web"
+  ],
+  "engines": {
+    "node": ">=20.11"
+  },
+  "scripts": {
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "build": "npm run build -w @app/shared --if-present && npm run build -w @app/backend && npm run build -w @app/admin-web",
+    "package:cpanel": "npm run build && node deploy/cpanel/package.mjs"
+  }
+}

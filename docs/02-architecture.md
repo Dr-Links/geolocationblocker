@@ -7,7 +7,7 @@ Every package named here exists today; versions are pinned at Milestone 1 after 
 | Layer | Choice | Why / alternatives considered |
 |---|---|---|
 | Language | **TypeScript** end to end | Shared types and validation schemas between mobile, admin web and backend |
-| Monorepo | **pnpm workspaces** (`apps/mobile`, `apps/admin-web`, `apps/backend`, `packages/shared`) | One repo, shared `zod` schemas and API types; no forced mobile code in the backend |
+| Monorepo | **npm workspaces** (`apps/backend`, `apps/admin-web`, `packages/shared`); `apps/mobile` is installed separately and links `packages/shared` | One repo, shared validation rules and API types; the Expo app keeps its own SDK-pinned dependency tree |
 | Mobile | **React Native via Expo (development builds, not Expo Go)**, Android first, iOS-ready | Expo gives EAS Build, config plugins, OTA updates; native modules still possible |
 | Mobile local DB | **SQLite with SQLCipher encryption** (`op-sqlite` with SQLCipher, or `expo-sqlite` with its SQLCipher option — confirmed at M7) | Offline cache must be encrypted at rest |
 | Mobile secrets | **`expo-secure-store`** (Android Keystore / iOS Keychain) | Refresh token + local DB key |
@@ -20,8 +20,8 @@ Every package named here exists today; versions are pinned at Milestone 1 after 
 | SMTP | **Nodemailer** | De-facto standard; XOAUTH2; builds MIME |
 | MIME parsing | **mailparser** (streaming) | Same ecosystem; handles encodings/attachments |
 | HTML sanitising | **sanitize-html** (server side) | Allow-list based; strips scripts/forms/event handlers |
-| DB access | **Kysely** (typed SQL query builder) + plain **SQL migration files** run by a small migrator | Keeps SQL explicit (needed for RLS/`SET LOCAL`), typed results |
-| Job queue / scheduler | **pg-boss** (PostgreSQL-backed) | Durable jobs, retries, backoff, cron, singleton keys — no Redis to operate |
+| DB access | **node-postgres** with parameterised SQL + plain **SQL migration files** run by a small built-in migrator (checksummed, one transaction each) | Keeps SQL explicit (needed for RLS/`SET LOCAL`); works with cPanel database users |
+| Job queue / scheduler | M1: SQL functions run by a **cron** command each minute. From M2: a PostgreSQL-backed job table driven by cron runs (fits cPanel; `pg-boss` remains an option on a VPS) | Durable jobs, retries, backoff — no Redis to operate |
 | Password hashing | **argon2id** via `argon2` | OWASP-recommended |
 | Crypto | Node `crypto` AES-256-GCM, envelope encryption | No home-grown crypto primitives |
 | Push | **Firebase Cloud Messaging** via `firebase-admin` (Android; iOS through APNs-in-FCM later) | Standard for Android |
@@ -105,7 +105,7 @@ Mail credentials never leave the backend after entry; the app sends them once ov
 States: `pending` → (`approved` | `rejected`); `approved` → `suspended` (reason `expired` or `admin_action`) → `approved` (admin only); any → `deleting` → row removed.
 
 - **Approval** (one transaction): set `status='approved'`, `approved_at=now()`, compute `access_expires_at`, insert `access_periods` row, write `audit_log`.
-- **Calendar month rule:** `ends_at = ((starts_at AT TIME ZONE business_tz) + interval '1 month') AT TIME ZONE business_tz`, where `business_tz` is the admin-configured IANA zone (default `UTC`; set it to your own zone). PostgreSQL clamps to the end of month: approved 31 Jan 15:00 → expires 28 Feb 15:00 (29 Feb in leap years); approved 15 Mar → 15 Apr same local wall-clock time, even across a DST change. Verified on PostgreSQL 16 during design.
+- **Calendar month rule (decided: user's own time zone):** `ends_at = ((starts_at AT TIME ZONE user_tz) + interval '1 month') AT TIME ZONE user_tz`, where `user_tz` is the IANA zone reported by the user's phone (kept current by the app). It is applied when you approve or renew, and the resulting instant is stored, so a later time-zone change does not move the current period's end. PostgreSQL clamps to the end of month: approved 31 Jan 15:00 → expires 28 Feb 15:00 (29 Feb in leap years); approved 15 Mar → 15 Apr same local wall-clock time, even across a DST change. Verified on PostgreSQL 16 during design.
 - **Boundary:** the period is half-open `[starts_at, ends_at)`. At `ends_at` exactly, access is denied.
 - **Immediate enforcement:** every authenticated request checks `status='approved' AND access_expires_at > now()` (cached per request, not per session), so access ends on time even if the expiry job is late. The **expiry job** (every minute) flips expired users to `suspended/expired`, revokes refresh tokens, pauses sync and scheduled sends, and notifies user + admin. A reminder is sent to the user 3 days and 1 day before expiry.
 - **Renewal/reactivation:** admin chooses "renew from now" (default — user was suspended, so the new month starts on reactivation) or "extend from previous expiry" (for renewals done *before* expiry). Each creates a new `access_periods` row with an optional payment note.

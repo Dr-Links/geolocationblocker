@@ -1,6 +1,10 @@
 -- =============================================================================
 -- Multi-user, multi-domain email platform — DRAFT PostgreSQL schema (v0.1)
 --
+-- NOTE (M1): the live schema is now defined by apps/backend/migrations/*.sql, which supersede
+-- this file. This draft remains the design reference for later milestones; when those tables are
+-- migrated they will drop the citext/pg_trgm extensions and PG15-only syntax for cPanel/PG13.
+--
 -- Status: DESIGN DRAFT. This file is loaded and validated against PostgreSQL 16
 -- in CI-like checks (see docs/04-database-design.md), but it is NOT a migration.
 -- Milestone 1 splits it into ordered, reversible migrations under
