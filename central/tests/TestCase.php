@@ -89,6 +89,39 @@ abstract class TestCase extends \PHPUnit\Framework\TestCase
         $db->pdo()->exec('SET FOREIGN_KEY_CHECKS=1');
     }
 
+    public const PASSWORD = 'correct-horse-battery-9';
+
+    protected function makeUser(string $email, bool $admin = false, string $status = 'active', string $name = 'Test User'): int
+    {
+        $id = $this->app->get(\Signalpost\Auth\AuthService::class)->createInvitedUser($email, self::PASSWORD, $name);
+        $this->app->db()->exec('UPDATE users SET is_platform_admin = ?, status = ? WHERE id = ?', [$admin ? 1 : 0, $status, $id]);
+        return $id;
+    }
+
+    protected function makeWorkspace(int $ownerId, string $name = 'Workspace'): int
+    {
+        return $this->app->get(\Signalpost\Tenancy\WorkspaceService::class)->create($ownerId, $name);
+    }
+
+    protected function addMember(int $workspaceId, int $userId, string $role = 'agent'): int
+    {
+        $now = $this->app->clock->sql();
+        return $this->app->db()->insert('workspace_members', [
+            'workspace_id' => $workspaceId, 'user_id' => $userId, 'role' => $role, 'status' => 'active', 'created_at' => $now, 'updated_at' => $now,
+        ]);
+    }
+
+    /** Signs in through the real login form and returns a browser with session cookie and CSRF token. */
+    protected function loginAs(string $email, string $password = self::PASSWORD): Browser
+    {
+        $b = $this->client();
+        $b->get('/login');
+        $res = $b->post('/login', ['form' => ['email' => $email, 'password' => $password, '_csrf' => $b->cookies['sp_csrf'] ?? '']]);
+        $this->assertSame(303, $res->status, 'login failed: ' . substr($res->body, 0, 300));
+        $b->csrf = (string) $this->app->db()->value('SELECT csrf_token FROM user_sessions WHERE user_id = (SELECT id FROM users WHERE email = ?) ORDER BY id DESC LIMIT 1', [strtolower($email)]);
+        return $b;
+    }
+
     protected function client(): Browser
     {
         return new Browser($this->app);

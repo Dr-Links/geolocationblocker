@@ -16,6 +16,7 @@ final class Browser
 {
     public array $cookies = [];
     public ?Response $last = null;
+    public string $csrf = '';
 
     public function __construct(private readonly App $app)
     {
@@ -74,5 +75,21 @@ final class Browser
     public function post(string $path, array $opts = []): Response
     {
         return $this->request('POST', $path, $opts);
+    }
+
+    /** Form POST including the session CSRF token. */
+    public function submit(string $path, array $form = []): Response
+    {
+        return $this->request('POST', $path, ['form' => $form + ['_csrf' => $this->csrf]]);
+    }
+
+    /** JSON request including the session CSRF header. */
+    public function api(string $method, string $path, ?array $json = null): Response
+    {
+        $opts = ['headers' => ['X-CSRF-Token' => $this->csrf, 'Accept' => 'application/json']];
+        if ($json !== null) {
+            $opts['json'] = $json;
+        }
+        return $this->request($method, $path, $opts);
     }
 }
