@@ -1,0 +1,7 @@
+{
+  "name": "signalpost-e2e",
+  "private": true,
+  "description": "Development-only browser tests. Not part of any deployment package.",
+  "scripts": { "test": "node run.mjs" },
+  "devDependencies": { "playwright": "1.56.1" }
+}

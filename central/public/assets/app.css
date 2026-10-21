@@ -253,3 +253,8 @@ legend { font-weight: 700; padding: 0 6px; }
   .msg { max-width: 90%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+.two-col.spaced { margin-top: 14px; }
+.thread-head select { width: auto; }
+.thread-head [data-back] { display: none; }
+@media (max-width: 860px) { .thread-head [data-back] { display: inline-flex; } }
+.thread-head .pill { text-transform: capitalize; }

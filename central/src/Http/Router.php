@@ -46,6 +46,7 @@ final class Router
     public function match(string $method, string $path): array
     {
         $allowed = [];
+        $allowedParams = [];
         $lookup = $method === 'HEAD' ? 'GET' : $method;
         foreach ($this->routes as $r) {
             if (preg_match($r['regex'], $path, $m) !== 1) {
@@ -53,6 +54,7 @@ final class Router
             }
             if ($r['method'] !== $lookup) {
                 $allowed[] = $r['method'];
+                $allowedParams = array_filter($m, 'is_string', ARRAY_FILTER_USE_KEY);
                 continue;
             }
             $params = array_filter($m, 'is_string', ARRAY_FILTER_USE_KEY);
@@ -60,7 +62,7 @@ final class Router
         }
         if ($allowed !== []) {
             if ($method === 'OPTIONS') {
-                return ['handler' => 'preflight', 'guard' => 'public', 'opts' => ['allowed' => $allowed], 'params' => []];
+                return ['handler' => 'preflight', 'guard' => 'public', 'opts' => ['allowed' => $allowed], 'params' => $allowedParams];
             }
             throw new HttpException(405, 'method_not_allowed', 'Method not allowed.');
         }

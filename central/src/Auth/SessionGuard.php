@@ -31,6 +31,7 @@ final class SessionGuard
 
     public function before(Request $request, string $guard, array $opts): void
     {
+        $request->attributes['poll'] = !empty($opts['poll']);
         $loaded = $this->app->get(SessionManager::class)->load($request);
         if ($loaded !== null) {
             [$session, $user] = $loaded;

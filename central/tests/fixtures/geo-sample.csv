@@ -1,0 +1,4 @@
+1.0.0.0,1.0.0.255,AU
+203.0.113.0,203.0.113.255,NL
+2001:db8::,2001:db8:ffff:ffff:ffff:ffff:ffff:ffff,DE
+bad,row,XX

@@ -7,9 +7,13 @@ use Signalpost\Controllers\AdminController;
 use Signalpost\Controllers\AuthController;
 use Signalpost\Controllers\DashboardController;
 use Signalpost\Controllers\HealthController;
+use Signalpost\Controllers\InboxApiController;
+use Signalpost\Controllers\InboxController;
 use Signalpost\Controllers\InstallController;
 use Signalpost\Controllers\IntegrationController;
+use Signalpost\Controllers\VisitorController;
 use Signalpost\Controllers\WebsiteController;
+use Signalpost\Controllers\WidgetController;
 use Signalpost\Controllers\MembersController;
 use Signalpost\Controllers\WorkspaceController;
 use Signalpost\Http\Router;
@@ -85,6 +89,35 @@ return static function (Router $r): void {
     $r->post('/api/v1/integration/rotate', [IntegrationController::class, 'rotate'], 'integration');
     $r->post('/api/v1/integration/disconnect', [IntegrationController::class, 'disconnect'], 'integration');
     $r->put('/api/v1/integration/settings', [IntegrationController::class, 'updateSettings'], 'integration');
+
+    // Inbox, live visitors, visitor profiles and blocking (HTML).
+    $r->get('/w/{ws}/inbox', [InboxController::class, 'inbox'], 'session');
+    $r->get('/w/{ws}/live', [InboxController::class, 'live'], 'session');
+    $r->get('/w/{ws}/visitors', [VisitorController::class, 'index'], 'session');
+    $r->get('/w/{ws}/visitors/{id}', [VisitorController::class, 'show'], 'session');
+    $r->post('/w/{ws}/visitors/{id}/block', [VisitorController::class, 'block'], 'session');
+    $r->post('/w/{ws}/visitors/{id}/unblock', [VisitorController::class, 'unblock'], 'session');
+    $r->post('/w/{ws}/visitors/{id}/delete', [VisitorController::class, 'delete'], 'session');
+    $r->get('/w/{ws}/blocks', [VisitorController::class, 'blocks'], 'session');
+
+    // Dashboard JSON API (session + X-CSRF-Token on writes).
+    $d = '/api/v1/dashboard/w/{ws}';
+    $r->get($d . '/conversations', [InboxApiController::class, 'conversations'], 'session', ['poll' => true]);
+    $r->get($d . '/conversations/{id}', [InboxApiController::class, 'conversation'], 'session');
+    $r->get($d . '/conversations/{id}/messages', [InboxApiController::class, 'messages'], 'session', ['poll' => true]);
+    $r->post($d . '/conversations/{id}/messages', [InboxApiController::class, 'reply'], 'session');
+    $r->post($d . '/conversations/{id}/status', [InboxApiController::class, 'status'], 'session');
+    $r->post($d . '/conversations/{id}/read', [InboxApiController::class, 'read'], 'session', ['poll' => true]);
+    $r->get($d . '/live', [InboxApiController::class, 'live'], 'session', ['poll' => true]);
+
+    // Public visitor widget API. Only visitor-facing endpoints exist under this prefix.
+    $wgt = '/api/v1/widget/{site}';
+    $r->post($wgt . '/session', [WidgetController::class, 'session'], 'widget');
+    $r->get($wgt . '/messages', [WidgetController::class, 'messages'], 'widget');
+    $r->post($wgt . '/messages', [WidgetController::class, 'send'], 'widget');
+    $r->post($wgt . '/contact', [WidgetController::class, 'contact'], 'widget');
+    $r->post($wgt . '/consent', [WidgetController::class, 'consent'], 'widget');
+    $r->post($wgt . '/events', [WidgetController::class, 'events'], 'widget');
 
     // Platform administration.
     $r->get('/admin', [AdminController::class, 'index'], 'session');
