@@ -1,0 +1,17 @@
+# Caddy gets and renews HTTPS certificates automatically once DNS points here.
+{
+	email {$ACME_EMAIL:admin@allwebmails.com}
+}
+
+app.allwebmails.com {
+	encode zstd gzip
+	reverse_proxy api:3000
+}
+
+admin.allwebmails.com {
+	encode zstd gzip
+	# Optional: allow only your own IP addresses to the admin site.
+	# @blocked not remote_ip 203.0.113.10
+	# respond @blocked 403
+	reverse_proxy admin:3001
+}

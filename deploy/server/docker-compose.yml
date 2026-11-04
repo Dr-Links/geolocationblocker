@@ -1,0 +1,56 @@
+# AllWebMails on one server (e.g. a Hostinger VPS): web app + API, admin site, mail sync worker,
+# scheduler, automatic HTTPS (Caddy). The database is hosted separately (Supabase, Neon, or the VPS's own PostgreSQL).
+#   cd deploy/server && cp env.example .env && (fill in) && docker compose up -d --build
+name: allwebmails
+
+x-app: &app
+  image: allwebmails:latest
+  build: { context: ../.., dockerfile: deploy/server/Dockerfile }
+  env_file: .env
+  restart: unless-stopped
+  volumes:
+    - data:/data
+    - ./secrets:/run/secrets:ro
+  logging: { driver: local, options: { max-size: 20m, max-file: '5' } }
+
+services:
+  api:            # https://app.allwebmails.com — the web app and the API for the web app and the Android app
+    <<: *app
+    command: ["node", "dist/entry-api.js"]
+
+  admin:          # https://admin.allwebmails.com — the administrator site
+    <<: *app
+    command: ["node", "dist/entry-admin.js"]
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/').then(r=>process.exit(r.ok?0:1),()=>process.exit(1))"]
+      interval: 30s
+
+  worker:         # keeps every mailbox in sync, sends mail, delivers notifications (runs all the time)
+    <<: *app
+    command: ["node", "dist/cli.js", "sync:daemon"]
+    healthcheck: { disable: true }
+
+  scheduler:      # access expiry, reminders, retries, storage housekeeping (every 30 s)
+    <<: *app
+    command: ["node", "dist/cli.js", "scheduler:run"]
+    healthcheck: { disable: true }
+
+  caddy:          # HTTPS certificates (Let's Encrypt) and reverse proxy
+    image: caddy:2.10
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [api, admin]
+
+  clamav:         # optional virus scanner: docker compose --profile clamav up -d  (needs ~2 GB RAM); set CLAMAV_HOST=clamav
+    image: clamav/clamav:stable
+    profiles: ["clamav"]
+    restart: unless-stopped
+
+volumes:
+  data:
+  caddy_data:
+  caddy_config:

@@ -108,3 +108,21 @@ jobs:
       - name: Browser test
         working-directory: apps/backend
         run: npx vitest run test/e2e/pwa.test.ts
+
+  # The production server image (deploy/server/Dockerfile), smoke-tested against PostgreSQL.
+  docker-image:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -f deploy/server/Dockerfile -t allwebmails:ci .
+      - name: Smoke test (migrate, serve the web app, pg_dump present)
+        run: bash deploy/server/smoke-test.sh allwebmails:ci

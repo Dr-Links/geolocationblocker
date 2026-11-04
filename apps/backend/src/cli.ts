@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import { randomBytes } from 'node:crypto';
+import webpush from 'web-push';
 import { connect } from 'node:net';
 import { createInterface } from 'node:readline/promises';
 import { stdin, stdout } from 'node:process';
@@ -68,6 +69,9 @@ async function main() {
     console.log('# Save these to files outside the web root and point *_FILE settings at them.\n');
     console.log('CREDENTIAL_KEY=' + randomBytes(32).toString('base64'));
     console.log('BACKUP_KEY=' + randomBytes(32).toString('base64') + '   (keep a copy OFF this server: without it backups cannot be read)');
+    const vapid = webpush.generateVAPIDKeys();
+    console.log('WEB_PUSH_PUBLIC_KEY=' + vapid.publicKey);
+    console.log('WEB_PUSH_PRIVATE_KEY=' + vapid.privateKey);
     console.log('\nJWT_PRIVATE_KEY (PEM):\n' + pem);
     return;
   }

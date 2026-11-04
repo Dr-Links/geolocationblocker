@@ -1,17 +1,24 @@
-# Multi-Mailbox Email Platform
+# AllWebMails
 
-A multi-user email management platform: an Android-first React Native app, a Node.js + PostgreSQL backend hosted on cPanel, and a separate admin dashboard.
+A multi-user email platform: connect many IMAP/SMTP mailboxes and use them in one secure inbox. It comes as:
+- a **web app (PWA)** at app.allwebmails.com, installable on any device;
+- an **Android app** (APK);
+- a Node.js + PostgreSQL backend;
+- an admin site.
 
-**Current stage: Milestone 1 is built and waiting for your test.** It covers registration with a Gmail address, email confirmation, admin approval with a one-calendar-month access period in each user's own time zone, automatic expiry and suspension, and the admin dashboard with authenticator sign-in. → **[Setup and test guide](docs/milestones/M1.md)**
+**Current stage: milestones 1–10 are built.** Only "Sign in with Google/Microsoft" for Gmail and Outlook mailboxes (M4b) is left; it needs app registrations with Google and Microsoft.
+→ **[Deployment guide](docs/deploy.md)** · [Roadmap](docs/05-roadmap.md) · [Milestone notes](docs/milestones/)
 
 ## Repository layout
 
 ```
 apps/backend      Node.js API (user + admin), scheduler, CLI, SQL migrations, tests
 apps/admin-web    Admin dashboard (React + Vite), served by the admin app
-apps/mobile       Android app (Expo / React Native, iOS-ready)
+apps/mobile       The app: Android (APK) and the web app/PWA (Expo / React Native + react-native-web)
 packages/shared   Rules shared by all three (Gmail normalisation, password policy, status)
-deploy/cpanel     Startup files, env template and the packaging script for cPanel
+deploy/server     Docker image + compose (VPS), Caddy, env template, smoke test
+deploy/website    Public website for allwebmails.com (static, for Hostinger)
+deploy/cpanel     Startup files and packaging for a Node-capable cPanel host
 docs/             Architecture, database design, security, roadmap, milestone guides
 ```
 

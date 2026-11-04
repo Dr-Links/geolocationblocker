@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.expo
+.git
+deploy/cpanel/out
+deploy/server/data
+deploy/server/secrets
+deploy/server/.env
+apps/mobile/android
+apps/mobile/ios
+coverage
+*.log

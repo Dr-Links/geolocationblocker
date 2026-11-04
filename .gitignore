@@ -11,3 +11,6 @@ apps/mobile/android/
 apps/mobile/ios/
 secrets/
 coverage/
+deploy/server/secrets/*
+!deploy/server/secrets/README.txt
+deploy/server/.env

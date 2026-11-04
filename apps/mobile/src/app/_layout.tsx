@@ -5,6 +5,7 @@ import { useTheme } from '../components/ui';
 import { AuthProvider } from '../lib/auth';
 import { UndoProvider } from '../lib/undo';
 import { setupWeb } from '../lib/pwa';
+import { UpdateNotice } from '../components/UpdateNotice';
 
 setupWeb();
 
@@ -14,6 +15,7 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <AuthProvider>
         <UndoProvider>
+        <UpdateNotice>
         <StatusBar style="auto" />
         <Stack
           screenOptions={{
@@ -27,6 +29,7 @@ export default function RootLayout() {
           <Stack.Screen name="(app)" options={{ headerShown: false }} />
           <Stack.Screen name="status" options={{ title: 'Account status', headerBackVisible: false }} />
         </Stack>
+        </UpdateNotice>
         </UndoProvider>
       </AuthProvider>
     </SafeAreaProvider>
