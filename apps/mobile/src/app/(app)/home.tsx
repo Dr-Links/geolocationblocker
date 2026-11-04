@@ -34,6 +34,7 @@ export default function Home() {
       <Button title="Write a new message" variant="secondary" onPress={() => router.push('/compose')} />
       <Button title="Outbox (scheduled / waiting / problems)" variant="secondary" onPress={() => router.push('/outbox')} />
       <Button title="Drafts" variant="secondary" onPress={() => router.push('/drafts')} />
+      <Button title="Notifications" variant="link" onPress={() => router.push('/notifications')} />
       <Button title="Signatures" variant="link" onPress={() => router.push('/signatures')} />
       <Button title="Templates and quick replies" variant="link" onPress={() => router.push('/templates')} />
       <Card>

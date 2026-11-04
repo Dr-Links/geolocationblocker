@@ -2,6 +2,7 @@ import type { Account } from '@app/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, setSignedOutHandler } from './api';
 import { deviceTimeZone } from './format';
+import { wipeLocalData } from './localdb';
 
 type AuthState =
   | { kind: 'loading' }
@@ -38,7 +39,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
-    setSignedOutHandler(() => setState({ kind: 'signedOut' }));
+    setSignedOutHandler(() => { wipeLocalData().catch(() => undefined); setState({ kind: 'signedOut' }); });
     (async () => {
       if (await api.hasStoredSession()) await reload();
       else setState({ kind: 'signedOut' });
@@ -53,7 +54,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setState({ kind: 'signedIn', account });
     },
     async signOut() {
+      await api.unregisterPush().catch(() => undefined);
       await api.logout().catch(() => undefined);
+      await wipeLocalData();
       setState({ kind: 'signedOut' });
     },
   }), [state, reload]);

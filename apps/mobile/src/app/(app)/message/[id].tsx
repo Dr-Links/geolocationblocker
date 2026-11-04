@@ -8,6 +8,8 @@ import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, Text, 
 import { WebView } from 'react-native-webview';
 import { Body, Button, Message, useTheme } from '../../../components/ui';
 import { api, authHeaders } from '../../../lib/api';
+import { randomUUID } from 'expo-crypto';
+import { cached, enqueue, isNetworkError } from '../../../lib/offline';
 import { fileSize, formatDateTime } from '../../../lib/format';
 
 /** Wraps sanitised email HTML in a document whose Content-Security-Policy forbids scripts and (by default) remote loads. */
@@ -37,8 +39,9 @@ export default function MessageView() {
 
   const load = useCallback(async (allowRemote = remote) => {
     try {
-      const r = await api.message(id, allowRemote);
+      const { value: r, stale } = await cached(`message:${id}`, () => api.message(id, allowRemote));
       setM(r.message);
+      if (stale) setNote('Offline — this is the copy saved on your phone.');
       return r.message;
     } catch (e) {
       setError((e as Error).message);
@@ -50,15 +53,19 @@ export default function MessageView() {
     (async () => {
       const msg = await load(false);
       if (msg && !msg.isSeen && msg.onServer) {
-        api.messageAction(msg.id, 'mark_read').then((r) => r.message && setM((cur) => (cur ? { ...cur, ...r.message } : cur)), () => undefined);
+        const opId = randomUUID();
+        api.messageAction(msg.id, 'mark_read', { clientOpId: opId }).then((r) => r.message && setM((cur) => (cur ? { ...cur, ...r.message } : cur)), (e) => {
+          if (isNetworkError(e)) enqueue(opId, { kind: 'action', payload: { messageId: msg.id, action: 'mark_read', extra: {} } }, 'Mark as read').catch(() => undefined);
+        });
       }
     })();
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const act = async (action: MessageAction, extra: { folderId?: string; confirm?: boolean } = {}) => {
     setBusy(true); setNote(null);
+    const opId = randomUUID();
     try {
-      const r = await api.messageAction(id, action, extra);
+      const r = await api.messageAction(id, action, { ...extra, clientOpId: opId });
       if (['archive', 'trash', 'spam', 'move', 'delete_forever', 'not_spam'].includes(action) && r.appliedOnServer) {
         router.back();
         return;
@@ -66,7 +73,15 @@ export default function MessageView() {
       if (r.message) setM((cur) => (cur ? { ...cur, ...r.message } : cur));
       if (r.note) setNote(r.note);
     } catch (e) {
-      setNote((e as Error).message);
+      if (isNetworkError(e)) {
+        // Offline: remember the action (applied once when back online) and show it right away for flags.
+        await enqueue(opId, { kind: 'action', payload: { messageId: id, action, extra } }, `${action.replace('_', ' ')}: ${m?.subject ?? ''}`);
+        if (action === 'mark_read' || action === 'mark_unread' || action === 'flag' || action === 'unflag') {
+          setM((cur) => (cur ? { ...cur, pendingSync: true, isSeen: action === 'mark_read' ? true : action === 'mark_unread' ? false : cur.isSeen,
+            isFlagged: action === 'flag' ? true : action === 'unflag' ? false : cur.isFlagged } : cur));
+        }
+        setNote('Offline — this change will be sent when you are back online.');
+      } else setNote((e as Error).message);
     } finally {
       setBusy(false);
     }

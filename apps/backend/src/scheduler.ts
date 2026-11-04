@@ -70,6 +70,7 @@ export async function schedulerTick(db: Db, cfg: Config, mailer: Mailer, log: (m
   const mailboxRetries = await retryMailboxes(db, cfg, mailer, log);
 
   const { rows: pr } = await db.query<{ r: Record<string, number> }>(`SELECT app.prune_operational_data() AS r`);
+  await db.query(`SELECT app.prune_change_feed()`);
   if (expired.length || warnings.length) log(`scheduler: expired ${expired.length}, warned ${warnings.length}`);
   return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {} };
 }

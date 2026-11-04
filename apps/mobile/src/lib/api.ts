@@ -180,6 +180,12 @@ export const api = {
     subject: string; text: string; html?: string | null; idempotencyKey: string; confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean;
     uploadIds?: string[]; signatureId?: string | null; includeOriginalAttachments?: boolean; sendAt?: string; timeZone?: string; draftId?: string;
   }) => authed<{ outbound: OutboundDto }>('POST', '/v1/outbound', input),
+  registerPushToken: (token: string, provider: 'expo' | 'fcm') => authed('PUT', '/v1/devices/current/push', { token, provider }),
+  unregisterPush: () => authed<void>('DELETE', '/v1/devices/current/push'),
+  notificationPreferences: () => authed<{ defaults: { newMail: boolean; sendProblems: boolean; mailboxProblems: boolean; reminders: boolean }; mailboxes: Array<{ mailboxId: string; newMail: boolean }> }>('GET', '/v1/notification-preferences'),
+  setNotificationPreferences: (p: { defaults: { newMail: boolean; sendProblems: boolean; mailboxProblems: boolean; reminders: boolean }; mailboxes: Array<{ mailboxId: string; newMail: boolean }> }) =>
+    authed('PUT', '/v1/notification-preferences', p),
+  changes: (since: number) => authed<{ changes: Array<{ seq: number; entity: string; id: string; op: string }>; cursor: number; hasMore: boolean; resetRequired: boolean }>('GET', `/v1/sync/changes?since=${since}`),
   editOutbound: (id: string) => authed<{ draft: DraftDto }>('POST', `/v1/outbound/${id}/edit`, {}),
   /** Uploads a local file (content:// or file:// URI) as raw bytes; the server detects its real type. */
   async uploadFile(uri: string, filename: string, inline = false): Promise<UploadDto> {

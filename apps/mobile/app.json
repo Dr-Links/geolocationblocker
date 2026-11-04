@@ -28,7 +28,19 @@
       "expo-secure-store",
       "expo-localization",
       "expo-sharing",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-sqlite",
+        {
+          "useSQLCipher": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "defaultChannel": "mail"
+        }
+      ]
     ],
     "scheme": "emailplatform",
     "extra": {

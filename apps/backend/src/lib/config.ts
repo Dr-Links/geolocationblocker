@@ -44,6 +44,10 @@ const schema = z.object({
   MAIL_ALLOW_PRIVATE_HOSTS: bool,
   MAIL_EXTRA_CA_FILE: z.string().optional(),
   BLOB_DIR: z.string().optional(),
+  PUSH_PROVIDER: z.enum(['expo', 'fcm', 'none']).optional(),
+  EXPO_PUSH_URL: z.string().url().default('https://exp.host/--/api/v2/push/send'),
+  FCM_API_BASE: z.string().url().default('https://fcm.googleapis.com'),
+  FCM_TOKEN_URL: z.string().url().default('https://oauth2.googleapis.com/token'),
   MAIL_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
 });
 
@@ -64,6 +68,14 @@ export interface Config {
   httpRateLimit: boolean;
   /** Where encrypted file copies (attachments, uploads) are stored. */
   blobDir: string;
+  push: {
+    provider: 'expo' | 'fcm' | 'none';
+    expoUrl: string;
+    expoAccessToken?: string;
+    fcmApiBase: string;
+    fcmTokenUrl: string;
+    fcmServiceAccountJson?: string;
+  };
   mail: {
     /** Development/test only: allow mail servers on private/loopback addresses. */
     allowPrivateHosts: boolean;
@@ -105,6 +117,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     minAppVersion: e.MIN_APP_VERSION,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
     blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
+    push: {
+      provider: e.PUSH_PROVIDER ?? (e.NODE_ENV === 'test' ? 'none' : 'expo'),
+      expoUrl: e.EXPO_PUSH_URL,
+      expoAccessToken: secret(env, 'EXPO_ACCESS_TOKEN'),
+      fcmApiBase: e.FCM_API_BASE.replace(/\/$/, ''),
+      fcmTokenUrl: e.FCM_TOKEN_URL,
+      fcmServiceAccountJson: secret(env, 'FCM_SERVICE_ACCOUNT'),
+    },
     mail: {
       allowPrivateHosts: e.NODE_ENV !== 'production' && (e.MAIL_ALLOW_PRIVATE_HOSTS ?? false),
       extraCaPem: e.MAIL_EXTRA_CA_FILE ? readFileSync(e.MAIL_EXTRA_CA_FILE, 'utf8') : undefined,

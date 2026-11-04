@@ -4,6 +4,7 @@ import { mailError } from '../mail/errors.js';
 import { createImapClient } from '../mail/imap.js';
 import { createSmtpTransport } from '../mail/smtp.js';
 import { getMailbox, loadSecrets, pinsOf, recordFailure, settingsOf, type MailboxRow } from '../mailboxes/repo.js';
+import { enqueueProblem } from '../push/notify.js';
 
 /** Delays before automatic retries of temporary failures (then the message is marked failed). */
 export const RETRY_DELAYS_SECONDS = [60, 300, 900, 1800, 3600];
@@ -170,6 +171,7 @@ export async function sendClaimed(cfg: Config, db: Db, userId: string, outboundI
         await recordAttempt(c, 'uncertain', null, k.text);
         await finish(c, o.id, { status: 'uncertain', last_error_code: k.code,
           last_error_message: 'The connection was lost while the message was being sent. It may or may not have been delivered; check before sending again.' });
+        await enqueueProblem(c, userId, 'send_problem', `send:${o.id}:uncertain`, `Check a message sent from ${m.email_address}`, { type: 'send_problem', outboundId: o.id }, m.id);
         return 'uncertain' as const;
       }
       if (k.kind === 'temp') {
@@ -178,6 +180,7 @@ export async function sendClaimed(cfg: Config, db: Db, userId: string, outboundI
       }
       await recordAttempt(c, 'perm_failure', e.responseCode ?? null, k.text);
       if (k.kind === 'auth') await recordFailure(c, m, mailError('AUTH_FAILED', 'smtp', m.smtp_host, m.smtp_port));
+      await enqueueProblem(c, userId, 'send_problem', `send:${o.id}:failed`, `A message from ${m.email_address} could not be sent`, { type: 'send_problem', outboundId: o.id }, m.id);
       await finish(c, o.id, { status: 'failed', last_error_code: k.code,
         last_error_message: k.kind === 'auth'
           ? 'The mail server rejected the mailbox password. Update it in the mailbox settings, then retry.'
@@ -192,6 +195,7 @@ export async function sendClaimed(cfg: Config, db: Db, userId: string, outboundI
 async function scheduleRetry(c: Tx, o: OutboundRow, code: string, text: string): Promise<boolean> {
   const delay = RETRY_DELAYS_SECONDS[o.attempt_count - 1];
   if (delay === undefined) {
+    await enqueueProblem(c, o.user_id, 'send_problem', `send:${o.id}:failed`, 'A message could not be sent', { type: 'send_problem', outboundId: o.id }, o.mailbox_id);
     await finish(c, o.id, { status: 'failed', last_error_code: code, last_error_message: `Gave up after ${o.attempt_count} attempts: ${text}`.slice(0, 500) });
     return false;
   }

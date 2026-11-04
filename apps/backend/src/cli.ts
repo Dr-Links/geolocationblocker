@@ -17,6 +17,7 @@ import { hashPassword } from './lib/passwords.js';
 import { schedulerTick } from './scheduler.js';
 import { runSyncPass } from './sync/runner.js';
 import { runSendPass } from './send/sender.js';
+import { dispatchNotifications } from './push/notify.js';
 
 const HELP = `Usage: node dist/cli.js <command>
 
@@ -224,6 +225,7 @@ async function main() {
         if (sent.length) console.log(`send pass: ${sent.join(', ')}`);
         const budget = cmd === 'sync:daemon' ? 55_000 : Math.max(5_000, seconds * 1000 - (Date.now() - started));
         const results = await runSyncPass(cfg, worker, { budgetMs: budget });
+        await dispatchNotifications(cfg, worker).catch((e: Error) => console.error(`push dispatch failed: ${e.message}`));
         const n = results.reduce((a, r) => a + r.newMessages, 0);
         if (results.length) console.log(`synced ${results.length} mailbox(es), ${n} new message(s), ${results.filter((r) => !r.ok).length} failed`);
         if (cmd === 'sync:daemon' && !stop) await new Promise((r) => setTimeout(r, results.length ? 1000 : 10_000));

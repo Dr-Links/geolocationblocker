@@ -1,6 +1,7 @@
 import type { Config } from '../lib/config.js';
 import { withUser, type Db } from '../lib/db.js';
 import { syncMailbox, type SyncResult } from './engine.js';
+import { enqueueNewMail } from '../push/notify.js';
 
 export interface PassOptions {
   /** Total time for this pass (cron mode: a little under the cron interval). */
@@ -42,6 +43,12 @@ export async function runSyncPass(cfg: Config, db: Db, opts: PassOptions): Promi
         `UPDATE mailboxes SET sync_lease_until = NULL,
                 next_sync_at = CASE WHEN initial_sync_done THEN now() + make_interval(secs => $2) ELSE now() END
           WHERE id = $1`, [r.sync_mailbox_id, interval]));
+      if (result.newInbox.length) {
+        await withUser(db, r.sync_user_id, async (c) => {
+          const { rows: mb } = await c.query<{ email_address: string }>(`SELECT email_address FROM mailboxes WHERE id = $1`, [r.sync_mailbox_id]);
+          if (mb[0]) await enqueueNewMail(c, r.sync_user_id, r.sync_mailbox_id, mb[0].email_address, result.newInbox.map((m) => m.id));
+        }).catch((e: Error) => log(`could not queue notifications: ${e.message}`));
+      }
       results.push(result);
       if (opts.onResult) await opts.onResult(r.sync_user_id, result).catch((e: Error) => log(`after-sync hook failed: ${e.message}`));
     }));

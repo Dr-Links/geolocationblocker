@@ -2,6 +2,8 @@ import type { MessageSummary } from '@app/shared';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { cached } from '../lib/offline';
+import { onRemoteChange } from '../lib/changes';
 import { api, type MessageListQuery } from '../lib/api';
 import { shortDate } from '../lib/format';
 import { Message, useTheme } from './ui';
@@ -14,11 +16,13 @@ export function MessageList({ query, showMailbox, empty }: { query: MessageListQ
   const [loadingMore, setLoadingMore] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   const key = JSON.stringify(query);
 
   const load = useCallback(async (more: boolean) => {
     try {
-      const r = await api.messages({ ...query, before: more ? cursor : null });
+      const { value: r, stale: wasStale } = more ? { value: await api.messages({ ...query, before: cursor }), stale: false } : await cached(`list:${key}`, () => api.messages({ ...query, before: null }));
+      setStale(wasStale);
       setItems((prev) => (more ? [...(prev ?? []), ...r.messages] : r.messages));
       setCursor(r.nextCursor);
       setError(null);
@@ -28,7 +32,7 @@ export function MessageList({ query, showMailbox, empty }: { query: MessageListQ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key, cursor]);
 
-  useFocusEffect(useCallback(() => { load(false); }, [key])); // eslint-disable-line react-hooks/exhaustive-deps
+  useFocusEffect(useCallback(() => { load(false); return onRemoteChange(() => { load(false); }); }, [key])); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (items === null && !error) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator color={t.primary} /></View>;
   return (
@@ -42,7 +46,7 @@ export function MessageList({ query, showMailbox, empty }: { query: MessageListQ
         if (!cursor || loadingMore) return;
         setLoadingMore(true); await load(true); setLoadingMore(false);
       }}
-      ListHeaderComponent={error ? <View style={{ padding: 16 }}><Message text={error} /></View> : undefined}
+      ListHeaderComponent={error ? <View style={{ padding: 16 }}><Message text={error} /></View> : stale ? <Text style={{ color: t.warn, padding: 8, textAlign: 'center', fontSize: 12 }}>Saved copy — you are offline</Text> : undefined}
       ListEmptyComponent={<Text style={{ color: t.muted, padding: 24, textAlign: 'center' }}>{empty}</Text>}
       ListFooterComponent={loadingMore ? <ActivityIndicator style={{ margin: 16 }} color={t.primary} /> : undefined}
       renderItem={({ item: m }) => (

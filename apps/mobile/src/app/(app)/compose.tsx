@@ -11,6 +11,7 @@ import { Body, Button, Field, Message, Screen, useTheme } from '../../components
 import { ApiError, api } from '../../lib/api';
 import { deviceTimeZone, fileSize, formatDateTime } from '../../lib/format';
 import { useUndo } from '../../lib/undo';
+import { enqueue, isNetworkError } from '../../lib/offline';
 
 type Mode = 'new' | 'reply' | 'reply_all' | 'forward';
 const split = (s: string) => s.split(/[,;\n]/).map((x) => x.trim()).filter(Boolean);
@@ -177,6 +178,11 @@ export default function Compose() {
   const submit = async (opts: { confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean } = {}) => {
     if (!fromId) return setError('Connect a mailbox first.');
     setBusy(true); setError(null);
+    const input = {
+      mailboxId: fromId, mode, sourceMessageId, to: split(to), cc: split(cc), bcc: split(bcc), subject, text, html: html || null,
+      idempotencyKey, uploadIds: attachments.map((a) => a.id), signatureId, includeOriginalAttachments: includeOriginal,
+      draftId: draft?.id, sendAt: sendAt?.toISOString(), timeZone: sendAt ? tz : undefined, ...opts,
+    };
     try {
       const r = await api.send({
         mailboxId: fromId, mode, sourceMessageId, to: split(to), cc: split(cc), bcc: split(bcc), subject, text, html: html || null,
@@ -187,6 +193,14 @@ export default function Compose() {
       if (!sendAt) offer(r.outbound);
       router.back();
     } catch (e) {
+      if (isNetworkError(e)) {
+        // Offline: keep it in the phone's outbox. The same idempotency key means it is sent once, never twice.
+        await enqueue(idempotencyKey, { kind: 'send', payload: input }, subject || '(no subject)');
+        sent.current = true;
+        Alert.alert('Saved in your outbox', 'You are offline. The message will be sent when you are back online. It has not been sent yet.');
+        router.back();
+        return;
+      }
       const details = e instanceof ApiError ? (e.details as { requires?: string } | undefined) : undefined;
       if (details?.requires === 'confirmVisibleRecipients') {
         Alert.alert('Recipients will see each other', (e as Error).message, [

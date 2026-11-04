@@ -2,6 +2,8 @@ import type { ThreadSummary } from '@app/shared';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { ActivityIndicator, FlatList, Pressable, RefreshControl, Text, View } from 'react-native';
+import { cached } from '../lib/offline';
+import { onRemoteChange } from '../lib/changes';
 import { api } from '../lib/api';
 import { shortDate } from '../lib/format';
 import { Message, useTheme } from './ui';
@@ -15,10 +17,12 @@ export function ThreadList({ query, showMailbox, empty }: { query: Query; showMa
   const [cursor, setCursor] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stale, setStale] = useState(false);
   const key = JSON.stringify(query);
   const load = useCallback(async (more: boolean) => {
     try {
-      const r = await api.threads({ ...query, before: more ? cursor : null });
+      const { value: r, stale: wasStale } = more ? { value: await api.threads({ ...query, before: cursor }), stale: false } : await cached(`threads:${key}`, () => api.threads({ ...query, before: null }));
+      setStale(wasStale);
       setItems((prev) => (more ? [...(prev ?? []), ...r.threads] : r.threads));
       setCursor(r.nextCursor);
       setError(null);
@@ -26,7 +30,7 @@ export function ThreadList({ query, showMailbox, empty }: { query: Query; showMa
       setError((e as Error).message);
     }
   }, [key, cursor]); // eslint-disable-line react-hooks/exhaustive-deps
-  useFocusEffect(useCallback(() => { load(false); }, [key])); // eslint-disable-line react-hooks/exhaustive-deps
+  useFocusEffect(useCallback(() => { load(false); return onRemoteChange(() => { load(false); }); }, [key])); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (items === null && !error) return <View style={{ flex: 1, justifyContent: 'center' }}><ActivityIndicator color={t.primary} /></View>;
   return (
@@ -36,7 +40,7 @@ export function ThreadList({ query, showMailbox, empty }: { query: Query; showMa
       keyExtractor={(x) => x.id}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={async () => { setRefreshing(true); await load(false); setRefreshing(false); }} />}
       onEndReached={() => { if (cursor) load(true); }}
-      ListHeaderComponent={error ? <View style={{ padding: 16 }}><Message text={error} /></View> : undefined}
+      ListHeaderComponent={error ? <View style={{ padding: 16 }}><Message text={error} /></View> : stale ? <Text style={{ color: t.warn, padding: 8, textAlign: 'center', fontSize: 12 }}>Saved copy — you are offline</Text> : undefined}
       ListEmptyComponent={<Text style={{ color: t.muted, padding: 24, textAlign: 'center' }}>{empty}</Text>}
       renderItem={({ item: th }) => {
         const m = th.latest;

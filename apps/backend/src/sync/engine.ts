@@ -13,6 +13,7 @@ import {
   applyServerFlags, removeLocations, specialOf, storeBody, storeMessage, upsertFolders, type FolderRow, type IncomingMessage,
 } from './store.js';
 import { processOperations } from './operations.js';
+import { enqueueProblem } from '../push/notify.js';
 
 /** Full message source is downloaded only up to this size; larger messages get their text parts only. */
 const FULL_FETCH_LIMIT = 2 * 1024 * 1024;
@@ -264,7 +265,14 @@ export async function syncMailbox(env: SyncEnv, mailboxId: string): Promise<Sync
       : await toMailError(env.cfg, err, 'imap', settingsOf(mailbox).imap);
     result.error = `${e.code}: ${(err as Error).message}`;
     env.log(`sync ${mailbox.email_address} failed: ${result.error}`);
-    await withUser(env.db, env.userId, (c: Tx) => recordFailure(c, mailbox, e));
+    await withUser(env.db, env.userId, async (c: Tx) => {
+      const needsUser = await recordFailure(c, mailbox, e);
+      if (needsUser) {
+        await enqueueProblem(c, env.userId, 'mailbox_problem', `mailbox_problem:${mailbox.id}:${Date.now() - (Date.now() % 3600_000)}`,
+          e.code === 'AUTH_FAILED' ? `${mailbox.email_address} needs its new password` : `${mailbox.email_address} cannot be reached`,
+          { type: 'mailbox_problem', mailboxId: mailbox.id }, mailbox.id);
+      }
+    });
   } finally {
     if (client) await client.logout().catch(() => client!.close());
   }

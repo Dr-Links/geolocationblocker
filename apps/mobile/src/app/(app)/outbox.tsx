@@ -5,11 +5,13 @@ import { Alert, View } from 'react-native';
 import { Body, Button, Card, Message, Screen, Title, useTheme } from '../../components/ui';
 import { api } from '../../lib/api';
 import { formatDateTime } from '../../lib/format';
+import { flushQueue, removeQueued, useQueue } from '../../lib/offline';
 
 export default function Outbox() {
   const t = useTheme();
   const [items, setItems] = useState<OutboundDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const local = useQueue();
   const load = useCallback(() => api.outbox('outbox').then((r) => setItems(r.outbound), (e: Error) => setError(e.message)), []);
   useFocusEffect(useCallback(() => { load(); const i = setInterval(load, 5000); return () => clearInterval(i); }, [load]));
 
@@ -26,7 +28,21 @@ export default function Outbox() {
     <Screen>
       <Title>Outbox</Title>
       <Message text={error} />
-      {items?.length === 0 ? <Body muted>Nothing waiting. Sent messages appear in Sent.</Body> : null}
+      {local.length ? (
+        <Card>
+          <Body style={{ fontWeight: '700' }}>Waiting on this phone ({local.length})</Body>
+          <Body muted style={{ fontSize: 13, marginBottom: 6 }}>Not sent yet: these go out when you are back online.</Body>
+          {local.map((q) => (
+            <View key={q.id} style={{ paddingVertical: 6, borderTopWidth: 1, borderColor: t.border }}>
+              <Body>{q.kind === 'send' ? '✉ ' : '↻ '}{q.label}</Body>
+              {q.failed ? <Body style={{ color: t.danger, fontSize: 13 }}>Refused by the server: {q.last_error}</Body> : null}
+              {q.failed ? <Button title="Remove" variant="link" onPress={() => removeQueued(q.id)} /> : null}
+            </View>
+          ))}
+          <Button title="Try now" variant="secondary" onPress={() => flushQueue().then(load)} />
+        </Card>
+      ) : null}
+      {items?.length === 0 && !local.length ? <Body muted>Nothing waiting. Sent messages appear in Sent.</Body> : null}
       {items?.map((o) => {
         const problem = ['failed', 'uncertain', 'paused_suspended'].includes(o.status);
         return (

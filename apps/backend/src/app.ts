@@ -13,6 +13,7 @@ import { registerMessageRoutes } from './routes/messages.js';
 import { registerOutboundRoutes } from './routes/outbound.js';
 import { registerSearchRoutes } from './routes/search.js';
 import { registerComposeRoutes } from './routes/compose.js';
+import { registerDeviceRoutes } from './routes/devices.js';
 import { registerThreadRoutes } from './routes/threads.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
@@ -85,5 +86,6 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   registerThreadRoutes(app, deps);
   registerSearchRoutes(app, deps);
   registerComposeRoutes(app, deps);
+  registerDeviceRoutes(app, deps);
   return app;
 }
