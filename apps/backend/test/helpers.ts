@@ -24,14 +24,14 @@ export interface Ctx {
   close(): Promise<void>;
 }
 
-export async function makeCtx(): Promise<Ctx> {
-  const cfg = loadConfig(testEnv());
+export async function makeCtx(opts: { env?: Record<string, string>; discovery?: import('../src/mail/discovery.js').DiscoveryDeps } = {}): Promise<Ctx> {
+  const cfg = loadConfig(testEnv(opts.env));
   const mailer = new MemoryMailer();
   const owner = createPool(cfg, 'owner', 2);
   const auth = createPool(cfg, 'auth');
   const apiPool = createPool(cfg, 'api');
   const adminPool = createPool(cfg, 'admin');
-  const api = await buildUserApi({ cfg, db: { auth, api: apiPool }, mailer, signer: await TokenSigner.create() });
+  const api = await buildUserApi({ cfg, db: { auth, api: apiPool }, mailer, signer: await TokenSigner.create(), discovery: opts.discovery });
   const admin = await buildAdminApi({ cfg, db: adminPool, mailer });
   const pools = [owner, auth, apiPool, adminPool];
   return {

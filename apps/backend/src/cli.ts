@@ -179,7 +179,7 @@ async function main() {
     const mailer = createMailer(cfg);
     const once = async () => {
       try {
-        await schedulerTick(worker, mailer);
+        await schedulerTick(worker, cfg, mailer);
       } catch (err) {
         console.error(`scheduler tick failed: ${(err as Error).message}`);
         process.exitCode = 1;

@@ -6,7 +6,9 @@ import { AppError } from './lib/errors.js';
 import { createHttp } from './lib/http.js';
 import type { Mailer } from './lib/mailer.js';
 import type { TokenSigner } from './lib/jwt.js';
+import { defaultDiscoveryDeps, type DiscoveryDeps } from './mail/discovery.js';
 import { registerAuthRoutes } from './routes/auth.js';
+import { registerMailboxRoutes } from './routes/mailboxes.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
 
@@ -15,6 +17,8 @@ export interface Deps {
   db: { auth: Db; api: Db };
   mailer: Mailer;
   signer: TokenSigner;
+  /** DNS/HTTP lookups for mailbox server discovery (replaceable in tests). */
+  discovery: DiscoveryDeps;
 }
 
 declare module 'fastify' {
@@ -27,7 +31,8 @@ declare module 'fastify' {
   }
 }
 
-export async function buildUserApi(deps: Deps): Promise<FastifyInstance> {
+export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?: DiscoveryDeps }): Promise<FastifyInstance> {
+  const deps: Deps = { ...input, discovery: input.discovery ?? defaultDiscoveryDeps(input.cfg) };
   const app = await createHttp(deps.cfg);
   app.decorateRequest('auth', undefined);
 
@@ -67,5 +72,6 @@ export async function buildUserApi(deps: Deps): Promise<FastifyInstance> {
   registerAuthRoutes(app, deps);
   registerMeRoutes(app, deps);
   registerPageRoutes(app, deps);
+  registerMailboxRoutes(app, deps);
   return app;
 }

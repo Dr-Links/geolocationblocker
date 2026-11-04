@@ -36,6 +36,16 @@ You chose to host on your **cPanel account**. Milestone 1 (accounts, admin, appr
 
 The concerns below still apply from **Milestone 2** onward (mailbox sync and sending). Before M2 we will measure your account with `node dist/cli.js check:outbound`. If outbound mail ports are open, M2 will use a **cron-driven sync**: each run polls mailboxes for about 50 seconds and exits, so it needs no permanent process. New mail then arrives within about 1–2 minutes instead of instantly, and sending happens on the next minute after the undo window. If the ports are blocked, we will discuss the smallest workaround with you then.
 
+### Update (4 Nov 2026): what the Hostinger account actually has
+
+Checked in hPanel: **Business Web Hosting (shared)**, PHP 8.3, MySQL, cron jobs and SSH. There's **no PostgreSQL and no Node.js runtime** on this plan. `allwebmails.com` is registered outside this Hostinger account.
+
+Consequences:
+- **Database:** a hosted PostgreSQL (Supabase or Neon) replaces cPanel PostgreSQL. No code changes are needed: point the `DB_*` settings at it and create the five database users there.
+- **Application server:** the Node.js API, admin dashboard and mailbox sync need a host that can run Node.js. That's a **Hostinger VPS** (recommended: one place for everything, PostgreSQL included) or a small Node host (Render, Railway, Fly.io) with hosted PostgreSQL.
+- **Mailbox sync** is built to run either from a 1-minute cron job (`sync:run`, which polls for about 50 s and exits) or as a permanent process. The same code serves both.
+- The Hostinger Business plan stays useful for the marketing website and the platform's own system email (`no-reply@…`).
+
 ## 1.2 Hosting feasibility: shared cPanel
 
 I cannot inspect your hosting account from here, so this assessment is based on how cPanel shared hosting normally behaves. **Section 1.4 is a checklist you can run to confirm or overturn it for your specific plan.**

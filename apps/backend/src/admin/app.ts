@@ -267,6 +267,11 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
         ORDER BY access_expires_at LIMIT 50`);
     const { rows: fails } = await db.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM login_attempts WHERE NOT success AND created_at > now() - interval '24 hours'`);
+    const { rows: mbx } = await db.query<{ status: string; n: number }>(`SELECT status, count(*)::int AS n FROM mailboxes GROUP BY 1`);
+    const { rows: problems } = await db.query<{ id: string; user_id: string; email_address: string; status: string; status_detail: string | null; last_error_at: Date | null; owner: string }>(
+      `SELECT m.id, m.user_id, m.email_address, m.status, m.status_detail, m.last_error_at, u.email_display AS owner
+         FROM mailboxes m JOIN users u ON u.id = m.user_id
+        WHERE m.status IN ('auth_failed','error') ORDER BY m.last_error_at DESC NULLS LAST LIMIT 50`);
     const sum = (pred: (r: { status: string; verified: boolean }) => boolean) => counts.filter(pred).reduce((a, r) => a + r.n, 0);
     return {
       counts: {
@@ -278,6 +283,8 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       },
       expiringSoon: expiring.map((e) => ({ id: e.id, email: e.email_display, accessExpiresAt: iso(e.access_expires_at) })),
       failedLogins24h: fails[0]?.n ?? 0,
+      mailboxes: Object.fromEntries(mbx.map((r) => [r.status, r.n])),
+      mailboxProblems: problems.map((p) => ({ id: p.id, userId: p.user_id, owner: p.owner, email: p.email_address, status: p.status, statusDetail: p.status_detail, lastErrorAt: iso(p.last_error_at) })),
     };
   });
 
@@ -307,7 +314,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       `SELECT * FROM users WHERE id = $1 AND role = 'user'`, [id]);
     const u = rows[0];
     if (!u) throw new AppError(404, 'not_found', 'User not found.');
-    const [periods, sessions, events, settings] = await Promise.all([
+    const [periods, sessions, events, settings, mailboxes] = await Promise.all([
       db.query<{ kind: string; starts_at: Date; ends_at: Date; timezone_used: string; payment_note: string | null; created_at: Date }>(
         `SELECT kind, starts_at, ends_at, timezone_used, payment_note, created_at FROM access_periods WHERE user_id = $1 ORDER BY created_at DESC`, [id]),
       db.query<{ id: string; kind: string; created_at: Date; last_used_at: Date; ip: string | null; name: string | null; platform: string | null }>(
@@ -317,6 +324,10 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       db.query<{ occurred_at: Date; actor_type: string; action: string; details: unknown }>(
         `SELECT occurred_at, actor_type, action, details FROM audit_log WHERE target_user_id = $1 ORDER BY occurred_at DESC LIMIT 50`, [id]),
       db.query<{ default_quota_bytes: number }>(`SELECT default_quota_bytes FROM platform_settings`),
+      db.query<{ id: string; email_address: string; provider: string; status: string; status_detail: string | null; last_error_code: string | null;
+                 last_error_at: Date | null; next_retry_at: Date | null; last_verified_at: Date | null; last_incoming_at: Date | null; created_at: Date }>(
+        `SELECT id, email_address, provider, status, status_detail, last_error_code, last_error_at, next_retry_at, last_verified_at,
+                last_incoming_at, created_at FROM mailboxes WHERE user_id = $1 ORDER BY created_at`, [id]),
     ]);
     return {
       user: {
@@ -330,7 +341,10 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       },
       accessPeriods: periods.rows.map((p) => ({ kind: p.kind, startsAt: iso(p.starts_at), endsAt: iso(p.ends_at), timezone: p.timezone_used, paymentNote: p.payment_note, createdAt: iso(p.created_at) })),
       sessions: sessions.rows.map((s) => ({ id: s.id, kind: s.kind, createdAt: iso(s.created_at), lastUsedAt: iso(s.last_used_at), ip: s.ip, deviceName: s.name, platform: s.platform })),
-      mailboxes: [] as unknown[], // Milestone 2: connection metadata and health only, never content
+      // Connection metadata and health only. The admin role cannot read credentials or message content.
+      mailboxes: mailboxes.rows.map((m) => ({ id: m.id, email: m.email_address, provider: m.provider, status: m.status, statusDetail: m.status_detail,
+        lastErrorCode: m.last_error_code, lastErrorAt: iso(m.last_error_at), nextRetryAt: iso(m.next_retry_at), lastVerifiedAt: iso(m.last_verified_at),
+        lastIncomingAt: iso(m.last_incoming_at), createdAt: iso(m.created_at) })),
       activity: events.rows.map((e) => ({ occurredAt: iso(e.occurred_at), actorType: e.actor_type, action: e.action, details: e.details })),
     };
   });
@@ -363,6 +377,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       const u = await loadUser(c, id);
       const { rows } = await c.query<{ starts_at: Date; ends_at: Date; timezone_used: string; previous_status: string }>(
         `SELECT * FROM app.grant_access($1, $2, $3, $4)`, [id, a.userId, body.mode, body.paymentNote ?? null]).catch(grantError);
+      if (rows[0]!.previous_status === 'suspended') await c.query(`SELECT app.resume_mailboxes($1)`, [id]);
       await audit(c, { actorType: 'admin', actorUserId: a.userId, action: rows[0]!.previous_status === 'suspended' ? 'user.reactivated' : 'user.renewed',
         targetType: 'user', targetId: id, targetUserId: id, ip: req.ip, details: { mode: body.mode, ends_at: rows[0]!.ends_at } });
       return { user: u, period: rows[0]! };

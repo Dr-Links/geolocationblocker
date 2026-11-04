@@ -52,7 +52,7 @@ export interface UserDetail {
   user: UserSummary & { suspendedAt: string | null; rejectedAt: string | null; storageQuotaBytes: number | null; effectiveQuotaBytes: number | null };
   accessPeriods: Array<{ kind: string; startsAt: string; endsAt: string; timezone: string; paymentNote: string | null; createdAt: string }>;
   sessions: Array<{ id: string; kind: string; createdAt: string; lastUsedAt: string; ip: string | null; deviceName: string | null; platform: string | null }>;
-  mailboxes: unknown[];
+  mailboxes: Array<{ id: string; email: string; provider: string; status: string; statusDetail: string | null; lastErrorCode: string | null; lastErrorAt: string | null; nextRetryAt: string | null; lastVerifiedAt: string | null; lastIncomingAt: string | null; createdAt: string }>;
   activity: Array<{ occurredAt: string; actorType: string; action: string; details: unknown }>;
 }
 

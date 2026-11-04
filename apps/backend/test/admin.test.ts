@@ -105,7 +105,7 @@ describe('account lifecycle', () => {
     expect(blocked.json().error.code).toBe('account_expired');
 
     const wm = new MemoryMailer();
-    const tick = await schedulerTick(worker, wm, () => undefined);
+    const tick = await schedulerTick(worker, ctx.cfg, wm, () => undefined);
     expect(tick.expired).toBe(1);
     expect(wm.sent.map((m) => m.to).sort()).toEqual(['nia@gmail.com', ADMIN_EMAIL].sort());
     const { rows: st } = await ctx.owner.query(`SELECT status, suspension_reason FROM app.users WHERE id = $1`, [id]);
@@ -113,7 +113,7 @@ describe('account lifecycle', () => {
     // Suspension revoked the session.
     expect((await ctx.api.inject({ method: 'GET', url: '/v1/me', headers: bearer(l.body.accessToken) })).statusCode).toBe(401);
     // A second tick does nothing (idempotent).
-    expect((await schedulerTick(worker, wm, () => undefined)).expired).toBe(0);
+    expect((await schedulerTick(worker, ctx.cfg, wm, () => undefined)).expired).toBe(0);
 
     // User can still sign in and sees "expired" with data intact.
     const l2 = await login(ctx, 'nia@gmail.com');
@@ -162,10 +162,10 @@ describe('account lifecycle', () => {
     await admin.post(`/admin/api/users/${id}/approve`);
     await ctx.owner.query(`UPDATE app.users SET access_expires_at = now() + interval '2 days' WHERE id = $1`, [id]);
     const wm = new MemoryMailer();
-    expect((await schedulerTick(worker, wm, () => undefined)).warned).toBe(1);
-    expect((await schedulerTick(worker, wm, () => undefined)).warned).toBe(0);
+    expect((await schedulerTick(worker, ctx.cfg, wm, () => undefined)).warned).toBe(1);
+    expect((await schedulerTick(worker, ctx.cfg, wm, () => undefined)).warned).toBe(0);
     await ctx.owner.query(`UPDATE app.users SET access_expires_at = now() + interval '10 hours' WHERE id = $1`, [id]);
-    expect((await schedulerTick(worker, wm, () => undefined)).warned).toBe(1);
+    expect((await schedulerTick(worker, ctx.cfg, wm, () => undefined)).warned).toBe(1);
   });
 
   it('permanent deletion needs the typed email and a fresh code, and removes the user\'s data', async () => {

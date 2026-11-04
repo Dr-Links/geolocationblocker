@@ -13,6 +13,8 @@ export default function AppLayout() {
       <Stack.Screen name="home" options={{ title: 'Email Platform' }} />
       <Stack.Screen name="sessions" options={{ title: 'Signed-in devices' }} />
       <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
+      <Stack.Screen name="mailbox-add" options={{ title: 'Add mailbox' }} />
+      <Stack.Screen name="mailbox/[id]" options={{ title: 'Mailbox' }} />
     </Stack>
   );
 }

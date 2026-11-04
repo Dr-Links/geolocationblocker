@@ -89,6 +89,15 @@ export const emails = {
       `These accounts reached the end of their access period and were suspended: ${userEmails.join(', ')}.`,
     ]),
 
+  mailboxNeedsAttention: (to: string, mailbox: string, reason: string, passwordProblem: boolean) =>
+    wrap(to, `Action needed: ${mailbox}`, [
+      passwordProblem
+        ? `The platform can no longer sign in to ${mailbox}. If you changed its password at your email provider, open the app and enter the new password for this mailbox.`
+        : `The platform has not been able to connect to ${mailbox} for a while. It keeps retrying automatically.`,
+      `Reason: ${reason}`,
+      'Your messages on the email provider are not affected.',
+    ]),
+
   adminPasswordReset: (to: string, url: string) =>
     wrap(to, 'Administrator password reset', [
       'A password reset was requested for the administrator account. The link expires in 30 minutes.',

@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import pg from 'pg';
 import { loadConfig } from '../src/lib/config.js';
 import { createPool } from '../src/lib/db.js';
@@ -7,6 +10,12 @@ import { TEST_DB, testEnv } from './env.js';
 // Creates a fresh database owned by a NON-superuser (like a cPanel database user), creates the
 // runtime database users, and applies all migrations as that owner.
 export default async function setup() {
+  // Real IMAP server (Dovecot) for mailbox tests. CI installs it with apt.
+  // In CI it is started beforehand with sudo (MAILTEST_EXTERNAL=1).
+  if (!process.env.MAILTEST_EXTERNAL) {
+    execFileSync(join(dirname(fileURLToPath(import.meta.url)), 'mailserver/start-dovecot.sh'), { stdio: 'inherit' });
+  }
+
   const su = new pg.Client({
     host: process.env.TEST_PG_HOST ?? 'localhost',
     port: Number(process.env.TEST_PG_PORT ?? 5432),

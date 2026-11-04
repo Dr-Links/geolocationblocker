@@ -44,8 +44,21 @@ export function UserDetail({ id }: { id: string }) {
         )}
       </Card>
 
-      <Card title="Mailboxes">
-        <p className="muted">Mailbox connections and their health appear here from Milestone 2. Email content is never shown to the administrator.</p>
+      <Card title={`Mailboxes (${d.mailboxes.length})`}>
+        <p className="muted">Connection health only. Email content and mailbox passwords are never available to the administrator.</p>
+        {d.mailboxes.length === 0 ? <p className="muted">None connected.</p> : (
+          <div className="table-wrap"><table><thead><tr><th>Address</th><th>Status</th><th>Problem</th><th>Last verified</th><th>Connected</th></tr></thead><tbody>
+            {d.mailboxes.map((m) => (
+              <tr key={m.id}>
+                <td>{m.email}</td>
+                <td><StatusBadge status={m.status === 'active' ? 'active' : m.status === 'disconnected' ? 'rejected' : m.status === 'paused_account' ? 'pending' : 'suspended'} /> <span className="muted">{m.status.replace('_', ' ')}</span></td>
+                <td className="wrap">{m.statusDetail ?? '—'}{m.nextRetryAt ? <><br /><span className="muted">next retry {fmt(m.nextRetryAt)}</span></> : null}</td>
+                <td>{fmt(m.lastVerifiedAt)}</td>
+                <td>{fmt(m.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody></table></div>
+        )}
       </Card>
 
       <Card title={`Active sessions (${d.sessions.length})`}>

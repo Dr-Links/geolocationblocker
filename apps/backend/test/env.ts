@@ -18,6 +18,8 @@ export function testEnv(extra: Record<string, string> = {}): NodeJS.ProcessEnv {
     DB_PASSWORD_API: 'test',
     DB_PASSWORD_ADMIN: 'test',
     DB_PASSWORD_WORKER: 'test',
+    MAIL_ALLOW_PRIVATE_HOSTS: 'true',
+    MAIL_CONNECT_TIMEOUT_MS: '5000',
     ...extra,
   };
 }

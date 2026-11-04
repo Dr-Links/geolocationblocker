@@ -6,6 +6,8 @@ interface Dash {
   counts: { pendingVerified: number; pendingUnverified: number; approved: number; suspended: number; rejected: number };
   expiringSoon: Array<{ id: string; email: string; accessExpiresAt: string }>;
   failedLogins24h: number;
+  mailboxes: Record<string, number>;
+  mailboxProblems: Array<{ id: string; userId: string; owner: string; email: string; status: string; statusDetail: string | null; lastErrorAt: string | null }>;
 }
 
 export function Dashboard() {
@@ -35,9 +37,21 @@ export function Dashboard() {
           </tbody></table>
         )}
       </Card>
+      <Card title="Mailbox health">
+        <p>
+          Connected: <strong>{d.mailboxes.active ?? 0}</strong> · Password needed: <strong>{d.mailboxes.auth_failed ?? 0}</strong> ·
+          Connection problems: <strong>{d.mailboxes.error ?? 0}</strong> · Paused: <strong>{d.mailboxes.paused_account ?? 0}</strong>
+        </p>
+        {d.mailboxProblems.length === 0 ? <p className="muted">No mailbox problems.</p> : (
+          <div className="table-wrap"><table><thead><tr><th>Mailbox</th><th>User</th><th>Status</th><th>Problem</th><th>Since</th></tr></thead><tbody>
+            {d.mailboxProblems.map((p) => (
+              <tr key={p.id}><td>{p.email}</td><td><Link to={`/users/${p.userId}`}>{p.owner}</Link></td><td>{p.status.replace('_', ' ')}</td><td className="wrap">{p.statusDetail ?? '—'}</td><td>{fmt(p.lastErrorAt)}</td></tr>
+            ))}
+          </tbody></table></div>
+        )}
+      </Card>
       <Card title="Security">
         <p>Failed sign-in attempts in the last 24 hours: <strong>{d.failedLogins24h}</strong></p>
-        <p className="muted">Mailbox health and sending errors appear here from Milestone 2.</p>
       </Card>
     </>
   );

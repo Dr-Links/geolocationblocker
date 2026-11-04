@@ -41,6 +41,9 @@ const schema = z.object({
   DB_USER_WORKER: z.string().default('app_worker'),
   DB_SSL: bool,
   HTTP_RATE_LIMIT: bool,
+  MAIL_ALLOW_PRIVATE_HOSTS: bool,
+  MAIL_EXTRA_CA_FILE: z.string().optional(),
+  MAIL_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
 });
 
 export type DbRole = 'owner' | 'auth' | 'api' | 'admin' | 'worker';
@@ -58,6 +61,13 @@ export interface Config {
   minAppVersion: string;
   /** Per-IP request limits (in memory, per process). Login throttling in the database is always on. */
   httpRateLimit: boolean;
+  mail: {
+    /** Development/test only: allow mail servers on private/loopback addresses. */
+    allowPrivateHosts: boolean;
+    /** Extra trusted CA certificate (PEM), e.g. for a test mail server. */
+    extraCaPem?: string;
+    connectTimeoutMs: number;
+  };
   smtp?: { host: string; port: number; secure: boolean; user?: string; password?: string; from: string };
   db: {
     host: string;
@@ -91,6 +101,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
     minAppVersion: e.MIN_APP_VERSION,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
+    mail: {
+      allowPrivateHosts: e.NODE_ENV !== 'production' && (e.MAIL_ALLOW_PRIVATE_HOSTS ?? false),
+      extraCaPem: e.MAIL_EXTRA_CA_FILE ? readFileSync(e.MAIL_EXTRA_CA_FILE, 'utf8') : undefined,
+      connectTimeoutMs: e.MAIL_CONNECT_TIMEOUT_MS,
+    },
     smtp: e.SMTP_HOST
       ? {
           host: e.SMTP_HOST,

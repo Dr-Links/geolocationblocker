@@ -157,6 +157,69 @@ export const ERROR_CODES = [
   'validation_failed', 'invalid_credentials', 'email_not_verified', 'account_rejected',
   'account_pending', 'account_suspended', 'account_expired', 'too_many_attempts',
   'unauthorized', 'session_revoked', 'not_found', 'invalid_token', 'weak_password',
-  'mfa_required', 'invalid_mfa_code', 'csrf_failed', 'conflict', 'internal_error',
+  'mfa_required', 'invalid_mfa_code', 'csrf_failed', 'conflict', 'internal_error', 'mailbox_connect_failed',
+  'limit_reached',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
+
+// ---------------------------------------------------------------------------
+// Mailboxes
+// ---------------------------------------------------------------------------
+
+export type MailboxStatus = 'active' | 'auth_failed' | 'error' | 'paused_account' | 'disconnected';
+export type Security = 'tls' | 'starttls';
+
+export interface ServerSettingsDto {
+  host: string;
+  port: number;
+  security: Security;
+  username: string;
+}
+
+export interface MailboxDto {
+  id: string;
+  email: string;
+  displayName: string | null;
+  labelColor: string | null;
+  provider: string;
+  status: MailboxStatus;
+  statusDetail: string | null;
+  lastErrorCode: string | null;
+  lastErrorAt: string | null;
+  nextRetryAt: string | null;
+  lastVerifiedAt: string | null;
+  lastIncomingAt: string | null;
+  createdAt: string;
+  disconnectedAt: string | null;
+  maxMessageBytes: number | null;
+  settings: (({ imap: ServerSettingsDto; smtp: ServerSettingsDto }) & {
+    discoveredVia: string;
+    trustedCertificate: { imap: boolean; smtp: boolean };
+  }) | null;
+}
+
+export interface CertificateDto {
+  subject: string | null;
+  altNames: string[];
+  issuer: string | null;
+  validTo: string | null;
+  fingerprint256: string;
+  pem: string;
+}
+
+/** `error.details` of a 422 mailbox_connect_failed response. */
+export interface ConnectFailureDetails {
+  stage: 'imap' | 'smtp';
+  reason: string;
+  certificate?: CertificateDto;
+  provider?: { name: string; requiresAppPassword: boolean; requiresOAuth: boolean; helpUrl?: string };
+  triedAutomatic: boolean;
+}
+
+export const MAILBOX_STATUS_TEXT: Record<MailboxStatus, string> = {
+  active: 'Connected',
+  auth_failed: 'Password needed',
+  error: 'Connection problem — retrying',
+  paused_account: 'Paused (account inactive)',
+  disconnected: 'Disconnected',
+};

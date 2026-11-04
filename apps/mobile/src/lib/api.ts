@@ -1,4 +1,4 @@
-import type { Account, ApiErrorBody, LoginResponse, SessionInfo } from '@app/shared';
+import type { Account, ApiErrorBody, LoginResponse, MailboxDto, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -7,9 +7,23 @@ import { API_URL, APP_VERSION } from './config';
 const REFRESH_KEY = 'refresh_token';
 
 export class ApiError extends Error {
-  constructor(public status: number, public code: string, message: string) {
+  constructor(public status: number, public code: string, message: string, public details?: unknown) {
     super(message);
   }
+}
+
+export interface CertificatePin {
+  sha256: string;
+  pem: string;
+}
+
+export interface ConnectInput {
+  email: string;
+  password: string;
+  smtpPassword?: string;
+  displayName?: string;
+  manual?: { imap: ServerSettingsDto; smtp: ServerSettingsDto };
+  trustCertificate?: { imap?: CertificatePin; smtp?: CertificatePin };
 }
 
 // The access token lives only in memory; the refresh token is kept in the
@@ -39,7 +53,7 @@ async function raw<T>(method: string, path: string, body?: unknown, token?: stri
   if (res.status === 204) return undefined as T;
   const data = (await res.json().catch(() => ({}))) as Partial<ApiErrorBody> & T;
   if (!res.ok) {
-    throw new ApiError(res.status, data.error?.code ?? 'error', data.error?.message ?? `Request failed (${res.status})`);
+    throw new ApiError(res.status, data.error?.code ?? 'error', data.error?.message ?? `Request failed (${res.status})`, data.error?.details);
   }
   return data;
 }
@@ -125,4 +139,13 @@ export const api = {
   sessions: () => authed<{ sessions: SessionInfo[] }>('GET', '/v1/me/sessions'),
   revokeSession: (id: string) => authed<void>('DELETE', `/v1/me/sessions/${id}`),
   config: () => raw<{ minimumSupportedAppVersion: string }>('GET', '/v1/config'),
+  mailboxes: () => authed<{ mailboxes: MailboxDto[] }>('GET', '/v1/mailboxes'),
+  mailbox: (id: string) => authed<{ mailbox: MailboxDto; events: Array<{ category: string; severity: string; code: string; detail: string | null; occurredAt: string; resolvedAt: string | null }> }>('GET', `/v1/mailboxes/${id}`),
+  connectMailbox: (input: ConnectInput) => authed<{ mailbox: MailboxDto }>('POST', '/v1/mailboxes', input),
+  updateMailboxConnection: (id: string, input: Omit<ConnectInput, 'email' | 'displayName'>) =>
+    authed<{ mailbox: MailboxDto }>('PUT', `/v1/mailboxes/${id}/connection`, input),
+  renameMailbox: (id: string, displayName: string | null) => authed<{ mailbox: MailboxDto }>('PATCH', `/v1/mailboxes/${id}`, { displayName }),
+  testMailbox: (id: string) => authed<{ mailbox: MailboxDto }>('POST', `/v1/mailboxes/${id}/test`, {}),
+  disconnectMailbox: (id: string, mode: 'keep' | 'delete', confirmEmail: string) =>
+    authed<{ ok: true }>('POST', `/v1/mailboxes/${id}/disconnect`, { mode, confirmEmail }),
 };

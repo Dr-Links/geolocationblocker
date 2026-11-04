@@ -1,5 +1,8 @@
+import { MAILBOX_STATUS_TEXT, type MailboxDto } from '@app/shared';
 import { router, useFocusEffect } from 'expo-router';
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
+import { Pressable } from 'react-native';
+import { api } from '../../lib/api';
 import { Body, Button, Card, Screen, Title, useTheme } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { daysLeft, formatDateTime } from '../../lib/format';
@@ -8,7 +11,11 @@ export default function Home() {
   const { state, reload, signOut } = useAuth();
   const t = useTheme();
   // Re-check status whenever the screen comes back into focus (suspension takes effect immediately).
-  useFocusEffect(useCallback(() => { reload(); }, [reload]));
+  const [mailboxes, setMailboxes] = useState<MailboxDto[] | null>(null);
+  useFocusEffect(useCallback(() => {
+    reload();
+    api.mailboxes().then((r) => setMailboxes(r.mailboxes), () => undefined);
+  }, [reload]));
   if (state.kind !== 'signedIn') return null;
   const a = state.account;
   const left = daysLeft(a.accessExpiresAt);
@@ -24,8 +31,18 @@ export default function Home() {
         ) : null}
       </Card>
       <Card>
-        <Body style={{ fontWeight: '600' }}>Mailboxes</Body>
-        <Body muted>Connecting your business mailboxes arrives in the next update (Milestone 2).</Body>
+        <Body style={{ fontWeight: '600', marginBottom: 6 }}>Mailboxes</Body>
+        {mailboxes === null ? <Body muted>Loading…</Body> : mailboxes.length === 0 ? <Body muted>No mailboxes connected yet.</Body> : null}
+        {mailboxes?.map((m) => (
+          <Pressable key={m.id} accessibilityRole="button" onPress={() => router.push({ pathname: '/mailbox/[id]', params: { id: m.id } })}
+            style={{ paddingVertical: 10, borderTopWidth: 1, borderColor: t.border }}>
+            <Body style={{ fontWeight: '600' }}>{m.displayName || m.email}</Body>
+            <Body style={{ fontSize: 13, color: m.status === 'active' ? t.ok : m.status === 'disconnected' || m.status === 'paused_account' ? t.muted : t.danger }}>
+              {m.displayName ? `${m.email} · ` : ''}{MAILBOX_STATUS_TEXT[m.status]}
+            </Body>
+          </Pressable>
+        ))}
+        <Button title="Add mailbox" onPress={() => router.push('/mailbox-add')} />
       </Card>
       <Button title="Signed-in devices" variant="secondary" onPress={() => router.push('/sessions')} />
       <Button title="Change password" variant="secondary" onPress={() => router.push('/change-password')} />

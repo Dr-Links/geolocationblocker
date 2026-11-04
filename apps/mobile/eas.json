@@ -3,11 +3,11 @@
     "preview": {
       "distribution": "internal",
       "android": { "buildType": "apk" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://api.example.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.allwebmails.com" }
     },
     "production": {
       "android": { "buildType": "app-bundle" },
-      "env": { "EXPO_PUBLIC_API_URL": "https://api.example.com" }
+      "env": { "EXPO_PUBLIC_API_URL": "https://api.allwebmails.com" }
     }
   }
 }
