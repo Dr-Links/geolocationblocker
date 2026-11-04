@@ -75,4 +75,6 @@ for i in $(seq 1 30); do (echo > /dev/tcp/127.0.0.1/19993) 2>/dev/null && break;
 # Tests (possibly running as another user in CI) edit the user file and read the log and test key.
 chmod 755 "$BASE"; chmod 666 "$BASE/users"; chmod 644 "$BASE/key.pem" "$BASE/ca.pem"
 touch "$BASE/dovecot.log"; chmod 644 "$BASE/dovecot.log"
+# When started with sudo (CI), give the user file to the calling user so tests can also update its timestamp.
+if [ -n "${SUDO_USER:-}" ]; then chown "$SUDO_USER" "$BASE/users"; fi
 echo "dovecot ready (CA: $BASE/ca.pem)"

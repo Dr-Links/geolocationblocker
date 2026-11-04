@@ -27,7 +27,7 @@ const fakeDiscovery: DiscoveryDeps = {
 const mailPasswords: Record<string, string> = { 'alice@test.local': MAIL_PASSWORD, 'bob@test.local': MAIL_PASSWORD };
 function setMailPassword(user: string, password: string) {
   mailPasswords[user] = password;
-  const hash = execFileSync('doveadm', ['pw', '-s', 'SHA512-CRYPT', '-p', password]).toString().trim();
+  const hash = execFileSync('doveadm', ['pw', '-s', 'SHA512-CRYPT', '-p', password], { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim();
   const file = `${MAIL_DIR}/users`;
   const lines = readFileSync(file, 'utf8').trim().split('\n').map((l) => {
     const parts = l.split(':');
