@@ -71,22 +71,51 @@ export interface IncomingMessage {
   body: { text: string | null; html: string | null; hasRemoteContent: boolean; snippet: string | null } | null;
 }
 
-/** Finds the conversation for a message from its In-Reply-To/References, or from replies that arrived first. */
+/**
+ * Finds the conversation for a message:
+ *  1. by its In-Reply-To/References, and by earlier-arrived replies that point to it — if these link
+ *     several existing conversations, they are merged into one;
+ *  2. only for messages that are clearly replies whose original we do not have: the same normalised
+ *     subject, a shared participant, and within 14 days. A similar subject alone never merges.
+ */
 async function threadFor(c: Tx, userId: string, m: IncomingMessage): Promise<string> {
   const parents = [m.inReplyTo, ...m.references].filter((x): x is string => !!x);
+  const ids = new Set<string>();
   if (parents.length) {
     const { rows } = await c.query<{ thread_id: string }>(
-      `SELECT thread_id FROM messages WHERE message_id_header = ANY($1) ORDER BY received_at DESC LIMIT 1`, [parents]);
-    if (rows[0]) return rows[0].thread_id;
+      `SELECT DISTINCT thread_id FROM messages WHERE message_id_header = ANY($1)`, [parents]);
+    rows.forEach((r) => ids.add(r.thread_id));
   }
   if (m.messageIdHeader) {
     const { rows } = await c.query<{ thread_id: string }>(
-      `SELECT thread_id FROM messages WHERE in_reply_to = $1 OR $1 = ANY(references_ids) LIMIT 1`, [m.messageIdHeader]);
-    if (rows[0]) return rows[0].thread_id;
+      `SELECT DISTINCT thread_id FROM messages WHERE in_reply_to = $1 OR $1 = ANY(references_ids)`, [m.messageIdHeader]);
+    rows.forEach((r) => ids.add(r.thread_id));
+  }
+  if (ids.size) {
+    const [target, ...others] = [...ids];
+    if (others.length) {
+      await c.query(`UPDATE messages SET thread_id = $1 WHERE thread_id = ANY($2)`, [target, others]);
+      await c.query(`UPDATE threads SET last_message_at = greatest(last_message_at, (SELECT max(last_message_at) FROM threads WHERE id = ANY($2))) WHERE id = $1`, [target, others]);
+    }
+    return target!;
+  }
+  const norm = normalizeSubject(m.subject).slice(0, 300);
+  const looksLikeReply = parents.length > 0 || /^\s*(re|fwd?|fw|aw|sv|wg)\s*:/i.test(m.subject ?? '');
+  // The user's own addresses are in every message of theirs, so they never count as a shared participant.
+  const own = new Set((await c.query<{ email_address: string }>(`SELECT email_address FROM mailboxes`)).rows.map((r) => r.email_address));
+  const participants = [...new Set(m.addresses.map((a) => a.address))].filter((a) => !own.has(a));
+  if (looksLikeReply && norm && participants.length) {
+    const { rows } = await c.query<{ id: string }>(
+      `SELECT t.id FROM threads t
+        WHERE t.subject_normalized = $1 AND t.last_message_at > $2::timestamptz - interval '14 days'
+          AND EXISTS (SELECT 1 FROM messages mm JOIN message_addresses a ON a.message_id = mm.id
+                       WHERE mm.thread_id = t.id AND a.address = ANY($3))
+        ORDER BY t.last_message_at DESC LIMIT 1`, [norm, m.receivedAt, participants]);
+    if (rows[0]) return rows[0].id;
   }
   const { rows } = await c.query<{ id: string }>(
     `INSERT INTO threads (user_id, subject_normalized, last_message_at) VALUES ($1, $2, $3) RETURNING id`,
-    [userId, normalizeSubject(m.subject).slice(0, 300), m.receivedAt]);
+    [userId, norm, m.receivedAt]);
   return rows[0]!.id;
 }
 
@@ -100,6 +129,9 @@ export async function storeMessage(c: Tx, userId: string, mailboxId: string, fol
   let id = existing.rows[0]?.id;
   let created = false;
   if (!id) {
+    // Mailboxes of one user sync in parallel; serialise conversation assignment per user so that a reply
+    // stored in one mailbox and its original stored in another at the same moment still end up together.
+    await c.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [`thread:${userId}`]);
     const threadId = await threadFor(c, userId, m);
     const toSummary = m.addresses.filter((a) => a.kind === 'to').slice(0, 3).map((a) => a.name || a.address).join(', ') || null;
     const text = m.body?.text ?? '';
@@ -131,7 +163,7 @@ export async function storeMessage(c: Tx, userId: string, mailboxId: string, fol
                        VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (message_id, part_id) DO NOTHING`,
           [userId, id, a.partId, a.filename, a.mimeType, a.sizeBytes, a.contentId, a.isInline, a.risk]);
       }
-      if (m.body) await storeBody(c, userId, id, m.body);
+      if (m.body) await storeBody(c, userId, id, m.body, false);
     } else {
       id = (await c.query<{ id: string }>(`SELECT id FROM messages WHERE mailbox_id = $1 AND provider_key = $2`, [mailboxId, m.providerKey])).rows[0]!.id;
     }
@@ -144,7 +176,7 @@ export async function storeMessage(c: Tx, userId: string, mailboxId: string, fol
   return { id, created };
 }
 
-export async function storeBody(c: Tx, userId: string, messageId: string, body: NonNullable<IncomingMessage['body']>) {
+export async function storeBody(c: Tx, userId: string, messageId: string, body: NonNullable<IncomingMessage['body']>, addToSearch = true) {
   const bytes = Buffer.byteLength(body.text ?? '') + Buffer.byteLength(body.html ?? '');
   await c.query(
     `INSERT INTO message_bodies (message_id, user_id, text_body, html_sanitized, has_remote_content, stored_bytes)
@@ -152,7 +184,11 @@ export async function storeBody(c: Tx, userId: string, messageId: string, body: 
      ON CONFLICT (message_id) DO UPDATE SET text_body = EXCLUDED.text_body, html_sanitized = EXCLUDED.html_sanitized,
             has_remote_content = EXCLUDED.has_remote_content, stored_bytes = EXCLUDED.stored_bytes, stored_at = now()`,
     [messageId, userId, body.text, body.html, body.hasRemoteContent, bytes]);
-  await c.query(`UPDATE messages SET body_state = 'stored', snippet = coalesce(snippet, $2) WHERE id = $1`, [messageId, body.snippet]);
+  await c.query(
+    `UPDATE messages SET body_state = 'stored', snippet = coalesce(snippet, $2),
+            search_vector = CASE WHEN $3 THEN coalesce(search_vector, ''::tsvector) || setweight(to_tsvector('simple', left(coalesce($4, ''), 100000)), 'C')
+                                 ELSE search_vector END
+      WHERE id = $1`, [messageId, body.snippet, addToSearch, body.text]);
 }
 
 /**

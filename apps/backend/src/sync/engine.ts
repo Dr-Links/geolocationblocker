@@ -86,7 +86,7 @@ export async function fetchBody(client: ImapFlow, uid: number, size: number | nu
   return { text, html: html?.html ?? null, hasRemoteContent: html?.hasRemoteContent ?? false, snippet: snippetOf(text) };
 }
 
-function toIncoming(msg: FetchMessageObject, folderId: string, uidValidity: number): IncomingMessage {
+export function toIncoming(msg: FetchMessageObject, folderId: string, uidValidity: number): IncomingMessage {
   const env = msg.envelope ?? {};
   const headers = parseHeaderBlock(msg.headers);
   const messageIdHeader = stripAngle(env.messageId);

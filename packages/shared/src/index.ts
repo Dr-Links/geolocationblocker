@@ -327,3 +327,39 @@ export interface ComposeSuggestion {
   subject: string;
   quoteAttribution: string;
 }
+
+// ---------------------------------------------------------------------------
+// Conversations and search
+// ---------------------------------------------------------------------------
+
+export interface ThreadSummary {
+  id: string;
+  latest: MessageSummary;
+  messageCount: number;
+  unreadCount: number;
+  isFlagged: boolean;
+  hasAttachments: boolean;
+  mailboxes: string[];
+  participants: string[];
+}
+
+export interface SearchFilters {
+  q?: string;
+  from?: string;
+  to?: string;
+  subject?: string;
+  mailboxId?: string;
+  in?: 'any' | 'inbox' | 'sent' | 'archive' | 'trash' | 'junk' | 'drafts';
+  unread?: '1' | '0';
+  flagged?: '1' | '0';
+  hasAttachments?: '1' | '0';
+  dateFrom?: string;
+  dateTo?: string;
+}
+
+export interface SavedSearch {
+  id: string;
+  name: string;
+  query: SearchFilters;
+  createdAt: string;
+}

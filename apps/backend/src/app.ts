@@ -11,6 +11,8 @@ import { registerAuthRoutes } from './routes/auth.js';
 import { registerMailboxRoutes } from './routes/mailboxes.js';
 import { registerMessageRoutes } from './routes/messages.js';
 import { registerOutboundRoutes } from './routes/outbound.js';
+import { registerSearchRoutes } from './routes/search.js';
+import { registerThreadRoutes } from './routes/threads.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
 
@@ -79,5 +81,7 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   registerMailboxRoutes(app, deps);
   registerMessageRoutes(app, deps);
   registerOutboundRoutes(app, deps);
+  registerThreadRoutes(app, deps);
+  registerSearchRoutes(app, deps);
   return app;
 }

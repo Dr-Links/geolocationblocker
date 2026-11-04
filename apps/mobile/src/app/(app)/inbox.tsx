@@ -1,8 +1,9 @@
 import type { MailboxDto } from '@app/shared';
-import { Stack, useFocusEffect } from 'expo-router';
+import { router, Stack, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { MessageList } from '../../components/MessageList';
+import { ThreadList } from '../../components/ThreadList';
 import { useTheme } from '../../components/ui';
 import { api } from '../../lib/api';
 
@@ -13,6 +14,7 @@ export default function UnifiedInbox() {
   const [filter, setFilter] = useState<string | null>(null);
   const [view, setView] = useState<'inbox' | 'sent' | 'flagged'>('inbox');
   const [unread, setUnread] = useState(false);
+  const [conversations, setConversations] = useState(true);
   useFocusEffect(useCallback(() => { api.mailboxes().then((r) => setMailboxes(r.mailboxes.filter((m) => m.status !== 'disconnected')), () => undefined); }, []));
 
   const chip = (label: string, selected: boolean, onPress: () => void) => (
@@ -29,10 +31,14 @@ export default function UnifiedInbox() {
         {chip('Sent', view === 'sent', () => setView('sent'))}
         {chip('★ Starred', view === 'flagged', () => setView('flagged'))}
         {chip('Unread only', unread, () => setUnread(!unread))}
+        {chip(conversations ? 'Conversations' : 'Single messages', conversations, () => setConversations(!conversations))}
+        {chip('🔍 Search', false, () => router.push('/search'))}
         {chip('All mailboxes', filter === null, () => setFilter(null))}
         {mailboxes.map((m) => chip(m.displayName || m.email, filter === m.id, () => setFilter(m.id)))}
       </ScrollView>
-      <MessageList query={{ view, mailboxId: filter ?? undefined, unread }} showMailbox={!filter} empty="No messages here yet. New mail appears within a minute or two." />
+      {conversations
+        ? <ThreadList query={{ view, mailboxId: filter ?? undefined, unread }} showMailbox={!filter} empty="No messages here yet. New mail appears within a minute or two." />
+        : <MessageList query={{ view, mailboxId: filter ?? undefined, unread }} showMailbox={!filter} empty="No messages here yet. New mail appears within a minute or two." />}
     </View>
   );
 }

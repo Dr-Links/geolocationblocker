@@ -1,4 +1,4 @@
-import type { Account, ApiErrorBody, ComposeSuggestion, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
+import type { Account, ApiErrorBody, ComposeSuggestion, SavedSearch, SearchFilters, ThreadSummary, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -182,6 +182,25 @@ export const api = {
   retrySend: (id: string, confirmPossibleDuplicate = false) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/retry`, { confirmPossibleDuplicate }),
   discardSend: (id: string) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/discard`, {}),
   outbox: (filter: 'outbox' | 'problems' | 'all' = 'outbox') => authed<{ outbound: OutboundDto[] }>('GET', `/v1/outbound?filter=${filter}`),
+  threads: (q: { view: 'inbox' | 'sent' | 'flagged' | 'folder'; mailboxId?: string; folderId?: string; unread?: boolean; before?: string | null }) => {
+    const p = new URLSearchParams({ view: q.view });
+    if (q.mailboxId) p.set('mailboxId', q.mailboxId);
+    if (q.folderId) p.set('folderId', q.folderId);
+    if (q.unread) p.set('unread', '1');
+    if (q.before) p.set('before', q.before);
+    return authed<{ threads: ThreadSummary[]; nextCursor: string | null }>('GET', `/v1/threads?${p}`);
+  },
+  thread: (id: string) => authed<{ id: string; subject: string | null; messages: MessageSummary[]; mailboxes: string[] }>('GET', `/v1/threads/${id}`),
+  search: (f: SearchFilters, before?: string | null) => {
+    const p = new URLSearchParams();
+    for (const [k, v] of Object.entries(f)) if (v) p.set(k, String(v));
+    if (before) p.set('before', before);
+    return authed<{ results: MessageSummary[]; nextCursor: string | null; note: string }>('GET', `/v1/search?${p}`);
+  },
+  savedSearches: () => authed<{ savedSearches: SavedSearch[] }>('GET', '/v1/saved-searches'),
+  saveSearch: (name: string, query: SearchFilters) => authed<{ id: string }>('POST', '/v1/saved-searches', { name, query }),
+  deleteSavedSearch: (id: string) => authed<void>('DELETE', `/v1/saved-searches/${id}`),
+  serverSearch: (mailboxId: string, q: string) => authed<{ foundOnServer: number; imported: number }>('POST', `/v1/mailboxes/${mailboxId}/server-search`, { q }),
   attachmentUrl: (messageId: string, attachmentId: string) => `${API_URL}/v1/messages/${messageId}/attachments/${attachmentId}`,
   disconnectMailbox: (id: string, mode: 'keep' | 'delete', confirmEmail: string) =>
     authed<{ ok: true }>('POST', `/v1/mailboxes/${id}/disconnect`, { mode, confirmEmail }),
