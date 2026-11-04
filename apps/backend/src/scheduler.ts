@@ -93,6 +93,7 @@ export async function schedulerTick(db: Db, cfg: Config, mailer: Mailer, log: (m
   } catch (err) {
     log(`storage housekeeping failed: ${(err as Error).message}`);
   }
+  await db.query(`SELECT app.beat('scheduler')`).catch(() => undefined);
   if (expired.length || warnings.length) log(`scheduler: expired ${expired.length}, warned ${warnings.length}`);
   return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {}, storage, reminders };
 }

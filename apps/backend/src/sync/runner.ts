@@ -53,5 +53,6 @@ export async function runSyncPass(cfg: Config, db: Db, opts: PassOptions): Promi
       if (opts.onResult) await opts.onResult(r.sync_user_id, result).catch((e: Error) => log(`after-sync hook failed: ${e.message}`));
     }));
   }
+  await db.query(`SELECT app.beat('sync', $1)`, [JSON.stringify({ mailboxes: results.length })]).catch(() => undefined);
   return results;
 }

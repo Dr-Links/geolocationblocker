@@ -43,6 +43,9 @@ const schema = z.object({
   TRUST_PROXY: bool,
   COOKIE_SECURE: bool,
   MIN_APP_VERSION: z.string().default('0.1.0'),
+  LATEST_APP_VERSION: z.string().optional(),
+  APP_DOWNLOAD_URL: z.string().url().optional(),
+  JOB_STALE_SECONDS: z.coerce.number().int().min(60).default(600),
   SMTP_HOST: z.string().optional(),
   SMTP_PORT: z.coerce.number().int().default(465),
   SMTP_SECURE: bool,
@@ -97,6 +100,9 @@ export interface Config {
   trustProxy: boolean;
   cookieSecure: boolean;
   minAppVersion: string;
+  latestAppVersion?: string;
+  appDownloadUrl?: string;
+  jobStaleSeconds: number;
   /** Per-IP request limits (in memory, per process). Login throttling in the database is always on. */
   httpRateLimit: boolean;
   /** Where encrypted file copies (attachments, uploads) are stored. */
@@ -159,6 +165,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     trustProxy: e.TRUST_PROXY ?? e.NODE_ENV === 'production',
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
     minAppVersion: e.MIN_APP_VERSION,
+    latestAppVersion: e.LATEST_APP_VERSION,
+    appDownloadUrl: e.APP_DOWNLOAD_URL,
+    jobStaleSeconds: e.JOB_STALE_SECONDS,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
     blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
     blobS3: e.BLOB_DRIVER === 's3' ? s3Config(env, e) : null,

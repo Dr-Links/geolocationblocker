@@ -78,7 +78,31 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   });
 
   app.get('/healthz', async () => ({ ok: true }));
-  app.get('/v1/config', async () => ({ minimumSupportedAppVersion: deps.cfg.minAppVersion }));
+  /** Database reachable (for a load balancer). Background job ages are reported but do not fail it. */
+  app.get('/readyz', async (_req, reply) => {
+    try {
+      const { rows } = await deps.db.api.query<{ ages: Record<string, number> }>(`SELECT app.heartbeat_ages() AS ages`);
+      return { ok: true, db: 'ok', jobAgesSeconds: rows[0]?.ages ?? {} };
+    } catch {
+      return reply.code(503).send({ ok: false, db: 'unreachable' });
+    }
+  });
+  /** For an uptime monitor: 503 when the cron job (scheduler) or mailbox sync has stopped running. */
+  app.get('/healthz/jobs', async (_req, reply) => {
+    try {
+      const { rows } = await deps.db.api.query<{ ages: Record<string, number> }>(`SELECT app.heartbeat_ages() AS ages`);
+      const ages = rows[0]?.ages ?? {};
+      const stale = ['scheduler', 'sync'].filter((j) => ages[j] === undefined || ages[j]! > deps.cfg.jobStaleSeconds);
+      return reply.code(stale.length ? 503 : 200).send({ ok: !stale.length, stale, jobAgesSeconds: ages });
+    } catch {
+      return reply.code(503).send({ ok: false, db: 'unreachable' });
+    }
+  });
+  app.get('/v1/config', async () => ({
+    minimumSupportedAppVersion: deps.cfg.minAppVersion,
+    latestAppVersion: deps.cfg.latestAppVersion ?? null,
+    appDownloadUrl: deps.cfg.appDownloadUrl ?? null,
+  }));
   registerAuthRoutes(app, deps);
   registerMeRoutes(app, deps);
   registerPageRoutes(app, deps);
