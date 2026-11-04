@@ -7,6 +7,7 @@ interface Dash {
   expiringSoon: Array<{ id: string; email: string; accessExpiresAt: string }>;
   failedLogins24h: number;
   mailboxes: Record<string, number>;
+  sendFailures24h: number;
   mailboxProblems: Array<{ id: string; userId: string; owner: string; email: string; status: string; statusDetail: string | null; lastErrorAt: string | null }>;
 }
 
@@ -52,6 +53,7 @@ export function Dashboard() {
       </Card>
       <Card title="Security">
         <p>Failed sign-in attempts in the last 24 hours: <strong>{d.failedLogins24h}</strong></p>
+        <p>Messages that could not be sent (last 24 hours): <strong>{d.sendFailures24h}</strong></p>
       </Card>
     </>
   );

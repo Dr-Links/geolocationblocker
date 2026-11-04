@@ -32,6 +32,9 @@ export interface MailboxRow {
   created_at: Date;
   disconnected_at: Date | null;
   sync_window_days: number;
+  provider_saves_sent: boolean;
+  send_limit_per_hour: number | null;
+  max_recipients_per_msg: number | null;
   next_sync_at: Date | null;
   initial_sync_done: boolean;
   imap_host: string;

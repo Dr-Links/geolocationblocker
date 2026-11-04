@@ -31,7 +31,7 @@ export async function makeCtx(opts: { env?: Record<string, string>; discovery?: 
   const auth = createPool(cfg, 'auth');
   const apiPool = createPool(cfg, 'api');
   const adminPool = createPool(cfg, 'admin');
-  const api = await buildUserApi({ cfg, db: { auth, api: apiPool }, mailer, signer: await TokenSigner.create(), discovery: opts.discovery });
+  const api = await buildUserApi({ cfg, db: { auth, api: apiPool }, mailer, signer: await TokenSigner.create(), discovery: opts.discovery, inProcessSend: false });
   const admin = await buildAdminApi({ cfg, db: adminPool, mailer });
   const pools = [owner, auth, apiPool, adminPool];
   return {

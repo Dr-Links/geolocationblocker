@@ -119,6 +119,9 @@ export default function MessageView() {
     <View style={{ flex: 1, backgroundColor: t.bg }}>
       <Stack.Screen options={{ title: m.mailbox.displayName || m.mailbox.email }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0, backgroundColor: t.surface, borderBottomWidth: 1, borderColor: t.border }}>
+        {barBtn('Reply', () => router.push({ pathname: '/compose', params: { mode: 'reply', sourceMessageId: m.id } }))}
+        {barBtn('Reply all', () => router.push({ pathname: '/compose', params: { mode: 'reply_all', sourceMessageId: m.id } }))}
+        {barBtn('Forward', () => router.push({ pathname: '/compose', params: { mode: 'forward', sourceMessageId: m.id } }))}
         {barBtn(m.isSeen ? 'Mark unread' : 'Mark read', () => act(m.isSeen ? 'mark_unread' : 'mark_read'))}
         {barBtn(m.isFlagged ? '★ Unstar' : '☆ Star', () => act(m.isFlagged ? 'unflag' : 'flag'))}
         {barBtn('Archive', () => act('archive'))}

@@ -10,6 +10,7 @@ import { defaultDiscoveryDeps, type DiscoveryDeps } from './mail/discovery.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerMailboxRoutes } from './routes/mailboxes.js';
 import { registerMessageRoutes } from './routes/messages.js';
+import { registerOutboundRoutes } from './routes/outbound.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
 
@@ -20,6 +21,8 @@ export interface Deps {
   signer: TokenSigner;
   /** DNS/HTTP lookups for mailbox server discovery (replaceable in tests). */
   discovery: DiscoveryDeps;
+  /** Send from the API process right after the undo window (the cron job is the fallback). Default true. */
+  inProcessSend?: boolean;
 }
 
 declare module 'fastify' {
@@ -75,5 +78,6 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   registerPageRoutes(app, deps);
   registerMailboxRoutes(app, deps);
   registerMessageRoutes(app, deps);
+  registerOutboundRoutes(app, deps);
   return app;
 }

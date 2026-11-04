@@ -19,6 +19,8 @@ export default function AppLayout() {
       <Stack.Screen name="folders/[mailboxId]" options={{ title: 'Folders' }} />
       <Stack.Screen name="folder/[folderId]" options={{ title: 'Folder' }} />
       <Stack.Screen name="message/[id]" options={{ title: 'Message' }} />
+      <Stack.Screen name="compose" options={{ title: 'New message' }} />
+      <Stack.Screen name="outbox" options={{ title: 'Outbox' }} />
     </Stack>
   );
 }

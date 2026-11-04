@@ -15,6 +15,7 @@ export async function startSmtp(passwords: () => Record<string, string>) {
   const key = readFileSync(`${MAIL_DIR}/key.pem`);
   const cert = readFileSync(`${MAIL_DIR}/ca.pem`);
   const captured: CapturedMail[] = [];
+  const failedOnce = new Set<string>();
   const make = (secure: boolean) =>
     new SMTPServer({
       secure,
@@ -26,6 +27,17 @@ export async function startSmtp(passwords: () => Record<string, string>) {
       onAuth(auth, _session, cb) {
         if (passwords()[auth.username ?? ''] === auth.password) cb(null, { user: auth.username });
         else cb(Object.assign(new Error('Invalid credentials'), { responseCode: 535 }));
+      },
+      // Test hooks: tempfail…@ → 451 (temporary), tempfail-once…@ → 451 only the first time, permfail…@ → 550.
+      onRcptTo(addr, _session, cb) {
+        const a = addr.address.toLowerCase();
+        if (a.startsWith('permfail')) return cb(Object.assign(new Error('5.1.1 No such user'), { responseCode: 550 }));
+        if (a.startsWith('tempfail-once') && !failedOnce.has(a)) {
+          failedOnce.add(a);
+          return cb(Object.assign(new Error('4.7.1 Try again later'), { responseCode: 451 }));
+        }
+        if (a.startsWith('tempfail') && !a.startsWith('tempfail-once')) return cb(Object.assign(new Error('4.7.1 Try again later'), { responseCode: 451 }));
+        cb();
       },
       onData(stream, session, cb) {
         const chunks: Buffer[] = [];

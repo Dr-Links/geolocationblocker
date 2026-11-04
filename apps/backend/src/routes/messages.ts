@@ -79,7 +79,7 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
    */
   app.get('/v1/messages', active, async (req) => {
     const q = parse(z.object({
-      view: z.enum(['inbox', 'folder', 'stored_only', 'flagged']).default('inbox'),
+      view: z.enum(['inbox', 'sent', 'folder', 'stored_only', 'flagged']).default('inbox'),
       mailboxId: z.string().uuid().optional(),
       folderId: z.string().uuid().optional(),
       unread: z.enum(['1', '0']).optional(),
@@ -94,6 +94,8 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
       where.push(`EXISTS (SELECT 1 FROM message_locations l WHERE l.message_id = m.id AND l.folder_id = ${p(q.folderId)})`);
     } else if (q.view === 'inbox') {
       where.push(`EXISTS (SELECT 1 FROM message_locations l JOIN folders f ON f.id = l.folder_id WHERE l.message_id = m.id AND f.special_use = 'inbox')`);
+    } else if (q.view === 'sent') {
+      where.push(`EXISTS (SELECT 1 FROM message_locations l JOIN folders f ON f.id = l.folder_id WHERE l.message_id = m.id AND f.special_use = 'sent')`);
     } else if (q.view === 'stored_only') {
       where.push(`m.server_state = 'deleted_on_server'`);
     } else {

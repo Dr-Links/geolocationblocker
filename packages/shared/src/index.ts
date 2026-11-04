@@ -280,3 +280,50 @@ export interface FolderDto {
 }
 
 export type MessageAction = 'mark_read' | 'mark_unread' | 'flag' | 'unflag' | 'archive' | 'trash' | 'spam' | 'not_spam' | 'move' | 'delete_forever';
+
+// ---------------------------------------------------------------------------
+// Outgoing mail
+// ---------------------------------------------------------------------------
+
+export type OutboundStatus = 'pending_undo' | 'scheduled' | 'queued' | 'sending' | 'sent' | 'failed' | 'cancelled' | 'uncertain' | 'paused_suspended';
+
+export interface OutboundDto {
+  id: string;
+  mailbox: { id: string; email: string };
+  status: OutboundStatus;
+  kind: 'new' | 'reply' | 'reply_all' | 'forward';
+  subject: string | null;
+  toSummary: string | null;
+  recipientCount: number;
+  releaseAt: string | null;
+  scheduledAt: string | null;
+  sentAt: string | null;
+  attemptCount: number;
+  nextAttemptAt: string | null;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  sentCopy: 'pending' | 'not_needed' | 'appended' | 'failed';
+  canUndo: boolean;
+  createdAt: string;
+}
+
+export const OUTBOUND_STATUS_TEXT: Record<OutboundStatus, string> = {
+  pending_undo: 'Sending soon (can be undone)',
+  scheduled: 'Scheduled',
+  queued: 'Waiting to send',
+  sending: 'Sending…',
+  sent: 'Sent to the mail server',
+  failed: 'Not sent',
+  cancelled: 'Cancelled',
+  uncertain: 'Delivery uncertain',
+  paused_suspended: 'Paused while the account was inactive',
+};
+
+export interface ComposeSuggestion {
+  mailboxId: string;
+  mode: 'reply' | 'reply_all' | 'forward';
+  to: AddressDto[];
+  cc: AddressDto[];
+  subject: string;
+  quoteAttribution: string;
+}

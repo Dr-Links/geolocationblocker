@@ -11,7 +11,7 @@ export default function UnifiedInbox() {
   const t = useTheme();
   const [mailboxes, setMailboxes] = useState<MailboxDto[]>([]);
   const [filter, setFilter] = useState<string | null>(null);
-  const [view, setView] = useState<'inbox' | 'flagged'>('inbox');
+  const [view, setView] = useState<'inbox' | 'sent' | 'flagged'>('inbox');
   const [unread, setUnread] = useState(false);
   useFocusEffect(useCallback(() => { api.mailboxes().then((r) => setMailboxes(r.mailboxes.filter((m) => m.status !== 'disconnected')), () => undefined); }, []));
 
@@ -23,9 +23,10 @@ export default function UnifiedInbox() {
   );
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
-      <Stack.Screen options={{ title: view === 'flagged' ? 'Starred' : 'All inboxes' }} />
+      <Stack.Screen options={{ title: view === 'flagged' ? 'Starred' : view === 'sent' ? 'All sent' : 'All inboxes' }} />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 8, padding: 10 }}>
         {chip('Inbox', view === 'inbox', () => setView('inbox'))}
+        {chip('Sent', view === 'sent', () => setView('sent'))}
         {chip('★ Starred', view === 'flagged', () => setView('flagged'))}
         {chip('Unread only', unread, () => setUnread(!unread))}
         {chip('All mailboxes', filter === null, () => setFilter(null))}

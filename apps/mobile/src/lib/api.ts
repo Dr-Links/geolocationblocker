@@ -1,4 +1,4 @@
-import type { Account, ApiErrorBody, FolderDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
+import type { Account, ApiErrorBody, ComposeSuggestion, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -113,7 +113,7 @@ export async function authHeaders(): Promise<Record<string, string>> {
 }
 
 export interface MessageListQuery {
-  view: 'inbox' | 'folder' | 'stored_only' | 'flagged';
+  view: 'inbox' | 'sent' | 'folder' | 'stored_only' | 'flagged';
   mailboxId?: string;
   folderId?: string;
   unread?: boolean;
@@ -172,6 +172,16 @@ export const api = {
   message: (id: string, remoteImages = false) => authed<{ message: MessageDetail }>('GET', `/v1/messages/${id}${remoteImages ? '?remoteImages=1' : ''}`),
   messageAction: (id: string, action: MessageAction, extra: { folderId?: string; confirm?: boolean; clientOpId?: string } = {}) =>
     authed<{ message: MessageSummary | null; appliedOnServer: boolean; note: string | null }>('POST', `/v1/messages/${id}/actions`, { action, ...extra }),
+  composeSuggestion: (messageId: string, mode: 'reply' | 'reply_all' | 'forward') =>
+    authed<ComposeSuggestion>('GET', `/v1/messages/${messageId}/compose?mode=${mode}`),
+  send: (input: {
+    mailboxId: string; mode: 'new' | 'reply' | 'reply_all' | 'forward'; sourceMessageId?: string; to: string[]; cc: string[]; bcc: string[];
+    subject: string; text: string; idempotencyKey: string; confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean;
+  }) => authed<{ outbound: OutboundDto }>('POST', '/v1/outbound', input),
+  undoSend: (id: string) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/undo`, {}),
+  retrySend: (id: string, confirmPossibleDuplicate = false) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/retry`, { confirmPossibleDuplicate }),
+  discardSend: (id: string) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/discard`, {}),
+  outbox: (filter: 'outbox' | 'problems' | 'all' = 'outbox') => authed<{ outbound: OutboundDto[] }>('GET', `/v1/outbound?filter=${filter}`),
   attachmentUrl: (messageId: string, attachmentId: string) => `${API_URL}/v1/messages/${messageId}/attachments/${attachmentId}`,
   disconnectMailbox: (id: string, mode: 'keep' | 'delete', confirmEmail: string) =>
     authed<{ ok: true }>('POST', `/v1/mailboxes/${id}/disconnect`, { mode, confirmEmail }),

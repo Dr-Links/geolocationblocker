@@ -16,6 +16,7 @@ import { migrate } from './lib/migrate.js';
 import { hashPassword } from './lib/passwords.js';
 import { schedulerTick } from './scheduler.js';
 import { runSyncPass } from './sync/runner.js';
+import { runSendPass } from './send/sender.js';
 
 const HELP = `Usage: node dist/cli.js <command>
 
@@ -218,6 +219,9 @@ async function main() {
         await schedulerTick(worker, cfg, mailer).catch((e: Error) => console.error(`scheduler tick failed: ${e.message}`));
       }
       do {
+        // Outgoing mail first: anything past its undo window or due for a retry.
+        const sent = await runSendPass(cfg, worker, 20_000).catch((e: Error) => { console.error(`send pass failed: ${e.message}`); return []; });
+        if (sent.length) console.log(`send pass: ${sent.join(', ')}`);
         const budget = cmd === 'sync:daemon' ? 55_000 : Math.max(5_000, seconds * 1000 - (Date.now() - started));
         const results = await runSyncPass(cfg, worker, { budgetMs: budget });
         const n = results.reduce((a, r) => a + r.newMessages, 0);

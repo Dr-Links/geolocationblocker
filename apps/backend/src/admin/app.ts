@@ -272,6 +272,8 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       `SELECT m.id, m.user_id, m.email_address, m.status, m.status_detail, m.last_error_at, u.email_display AS owner
          FROM mailboxes m JOIN users u ON u.id = m.user_id
         WHERE m.status IN ('auth_failed','error') ORDER BY m.last_error_at DESC NULLS LAST LIMIT 50`);
+    const { rows: sendFails } = await db.query<{ n: number }>(
+      `SELECT count(*)::int AS n FROM outbound_messages WHERE status IN ('failed','uncertain') AND created_at > now() - interval '24 hours'`);
     const sum = (pred: (r: { status: string; verified: boolean }) => boolean) => counts.filter(pred).reduce((a, r) => a + r.n, 0);
     return {
       counts: {
@@ -284,6 +286,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       expiringSoon: expiring.map((e) => ({ id: e.id, email: e.email_display, accessExpiresAt: iso(e.access_expires_at) })),
       failedLogins24h: fails[0]?.n ?? 0,
       mailboxes: Object.fromEntries(mbx.map((r) => [r.status, r.n])),
+      sendFailures24h: sendFails[0]?.n ?? 0,
       mailboxProblems: problems.map((p) => ({ id: p.id, userId: p.user_id, owner: p.owner, email: p.email_address, status: p.status, statusDetail: p.status_detail, lastErrorAt: iso(p.last_error_at) })),
     };
   });

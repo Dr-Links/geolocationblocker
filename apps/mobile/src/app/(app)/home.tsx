@@ -31,6 +31,8 @@ export default function Home() {
         ) : null}
       </Card>
       <Button title="Open all inboxes" onPress={() => router.push('/inbox')} />
+      <Button title="Write a new message" variant="secondary" onPress={() => router.push('/compose')} />
+      <Button title="Outbox (waiting / problems)" variant="secondary" onPress={() => router.push('/outbox')} />
       <Card>
         <Body style={{ fontWeight: '600', marginBottom: 6 }}>Mailboxes</Body>
         {mailboxes === null ? <Body muted>Loading…</Body> : mailboxes.length === 0 ? <Body muted>No mailboxes connected yet.</Body> : null}
