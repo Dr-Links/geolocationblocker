@@ -4,6 +4,9 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useTheme } from '../components/ui';
 import { AuthProvider } from '../lib/auth';
 import { UndoProvider } from '../lib/undo';
+import { setupWeb } from '../lib/pwa';
+
+setupWeb();
 
 export default function RootLayout() {
   const t = useTheme();

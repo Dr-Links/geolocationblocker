@@ -1,11 +1,10 @@
-import { SECURITY_REASON_TEXT, type FolderDto, type MessageAction, type MessageDetail } from '@app/shared';
+import { FRAME_SCRIPT_HASHES, SECURITY_REASON_TEXT, type FolderDto, type MessageAction, type MessageDetail } from '@app/shared';
 import * as Clipboard from 'expo-clipboard';
-import { File, Paths } from 'expo-file-system';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
-import * as Sharing from 'expo-sharing';
+import { saveDownload } from '../../../lib/download';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, Modal, Pressable, ScrollView, Text, View } from 'react-native';
-import { WebView } from 'react-native-webview';
+import { FRAME_EXTRAS, MailFrame } from '../../../components/frames';
 import { Body, Button, Message, useTheme } from '../../../components/ui';
 import { api, authHeaders } from '../../../lib/api';
 import { randomUUID } from 'expo-crypto';
@@ -16,7 +15,8 @@ import { fileSize, formatDateTime } from '../../../lib/format';
 function emailDocument(html: string, allowRemote: boolean, dark: boolean) {
   const img = allowRemote ? 'img-src data: https: http:;' : 'img-src data:;';
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${img} style-src 'unsafe-inline'; font-src data:;">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; ${img} style-src 'unsafe-inline'; font-src data:;${FRAME_EXTRAS.mailLink ? ` script-src '${FRAME_SCRIPT_HASHES.mailLink}';` : ''}">
+${FRAME_EXTRAS.mailLink ? `<script>${FRAME_EXTRAS.mailLink}</script>` : ''}
 <style>body{margin:0;padding:12px 16px;font-family:-apple-system,Roboto,sans-serif;font-size:15px;line-height:1.45;word-wrap:break-word;
 ${dark ? 'background:#0f1720;color:#e4e7eb;' : 'background:#fff;color:#1f2933;'}}img{max-width:100%;height:auto}table{max-width:100%}
 img[data-blocked-src]{display:inline-block;min-width:24px;min-height:12px;background:#9aa5b133}</style></head><body>${html}</body></html>`;
@@ -128,10 +128,7 @@ export default function MessageView() {
     const go = async () => {
       setBusy(true);
       try {
-        const safe = a.filename.replace(/[\\/:*?"<>|]/g, '_').slice(0, 120) || 'attachment';
-        const target = new File(Paths.cache, `${Date.now()}-${safe}`);
-        const file = await File.downloadFileAsync(api.attachmentUrl(id, a.id), target, { headers: await authHeaders(), idempotent: true });
-        if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(file.uri, { mimeType: a.mimeType, dialogTitle: a.filename });
+        await saveDownload(api.attachmentUrl(id, a.id), await authHeaders(), a.filename, a.mimeType);
       } catch (e) {
         setNote(`Download failed: ${(e as Error).message}`);
       } finally {
@@ -227,21 +224,10 @@ export default function MessageView() {
       </View>
 
       {m.body?.html ? (
-        <WebView
+        <MailFrame
           style={{ flex: 1, backgroundColor: t.bg }}
-          originWhitelist={['about:*']}
-          source={{ html: emailDocument(m.body.html, m.body.remoteContentShown, dark) }}
-          javaScriptEnabled={false}
-          domStorageEnabled={false}
-          allowFileAccess={false}
-          allowFileAccessFromFileURLs={false}
-          allowUniversalAccessFromFileURLs={false}
-          setSupportMultipleWindows={false}
-          onShouldStartLoadWithRequest={(req) => {
-            if (req.url.startsWith('about:')) return true;
-            openLink(req.url);
-            return false;
-          }}
+          html={emailDocument(m.body.html, m.body.remoteContentShown, dark)}
+          onLink={openLink}
         />
       ) : (
         <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16 }}>

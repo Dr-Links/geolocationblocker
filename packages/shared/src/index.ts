@@ -134,7 +134,8 @@ export interface Account {
 export interface LoginResponse {
   accessToken: string;
   accessTokenExpiresAt: string;
-  refreshToken: string;
+  /** null for the web app: its refresh token is kept in an HttpOnly cookie. */
+  refreshToken: string | null;
   account: Account;
 }
 
@@ -397,3 +398,43 @@ export interface DraftDto {
   to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; html: string | null; signatureId: string | null;
   uploadIds: string[]; version: number; updatedByDevice: string | null; updatedAt: string; createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Scripts that run inside the app's sandboxed frames (the composer and the message view).
+// They are fixed strings so the web app's Content-Security-Policy can allow exactly these by hash
+// (the hashes are checked by a backend test) and no other inline script.
+// ---------------------------------------------------------------------------
+
+/** The rich-text editor page's script (contenteditable, plain-text paste, link/image helpers). */
+export const EDITOR_SCRIPT = `var e=document.getElementById('e');
+function send(){if(typeof keep==='function')keep();window.ReactNativeWebView.postMessage(JSON.stringify({html:e.innerHTML,text:e.innerText}));}
+e.addEventListener('input',send);
+e.addEventListener('paste',function(ev){ev.preventDefault();var t=(ev.clipboardData||window.clipboardData).getData('text/plain');document.execCommand('insertText',false,t);});
+e.addEventListener('drop',function(ev){ev.preventDefault();});
+// Remember where the cursor was, so toolbar buttons (which take focus away) act at the right place.
+var saved=null;
+function keep(){var s=window.getSelection();if(s&&s.rangeCount&&e.contains(s.anchorNode))saved=s.getRangeAt(0).cloneRange();}
+document.addEventListener('selectionchange',keep);
+['input','keyup','mouseup','touchend'].forEach(function(n){e.addEventListener(n,keep);});
+function restore(){e.focus();if(saved){var s=window.getSelection();s.removeAllRanges();s.addRange(saved);}}
+window.cmd=function(c,a){restore();document.execCommand(c,false,a||null);
+if(c==='insertUnorderedList'||c==='insertOrderedList'){var s=window.getSelection();var n=s&&s.anchorNode;while(n&&n!==e&&n.nodeName!=='LI')n=n.parentNode;
+if(n&&n.nodeName==='LI'){var r=document.createRange();r.selectNodeContents(n);r.collapse(false);s.removeAllRanges();s.addRange(r);}}
+send();};
+window.addLink=function(u){if(!/^(https?:|mailto:)/i.test(u))return;restore();var s=window.getSelection();if(s&&s.isCollapsed){document.execCommand('insertHTML',false,'<a href="'+u.replace(/"/g,'%22')+'">'+u.replace(/</g,'&lt;')+'</a>');}else{document.execCommand('createLink',false,u);}send();};
+window.addImage=function(d,id){restore();document.execCommand('insertHTML',false,'<img src="'+d+'" data-upload-id="'+id+'">');send();};
+window.addText=function(t){restore();document.execCommand('insertText',false,t);send();};
+send();
+`;
+
+/** Web only: lets the editor frame talk to the app (replaces React Native's WebView bridge); only editor functions can be called. */
+export const FRAME_BRIDGE_SCRIPT = `(function(){var P=window.parent;window.ReactNativeWebView={postMessage:function(d){P.postMessage({awm:1,data:d},'*');}};var A={cmd:1,addLink:1,addImage:1,addText:1};window.addEventListener('message',function(ev){if(ev.source!==P)return;var m=ev.data;if(!m||typeof m.awmCall!=='string'||!A[m.awmCall])return;var f=window[m.awmCall];if(typeof f==='function')f.apply(null,Array.isArray(m.args)?m.args:[]);});})();`;
+
+/** Web only: in the message view, link clicks are handed to the app, which warns before opening them. */
+export const MAIL_LINK_SCRIPT = `document.addEventListener('click',function(ev){var a=ev.target&&ev.target.closest?ev.target.closest('a[href]'):null;if(!a)return;ev.preventDefault();window.parent.postMessage({awm:1,link:a.getAttribute('href')},'*');},true);`;
+
+export const FRAME_SCRIPT_HASHES = {
+  editor: 'sha256-CI6R+I2gNUTF3uJvSCD5Ms+raYKBU8VjvUZhO+pSkLo=',
+  bridge: 'sha256-hw+ms3h2ahfHgU3PkwncBSOFTADaw1ysPP25OJhjHF8=',
+  mailLink: 'sha256-xiCx5vzBEJSyvyR62GvtFzedygNE88CwymoklJw8xf8=',
+} as const;

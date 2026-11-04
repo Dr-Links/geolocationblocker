@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withUser } from '../lib/db.js';
 import { AppError, parse } from '../lib/errors.js';
 import { summary } from './messages.js';
+import { parseWebPushToken } from '../push/providers.js';
 import type { Deps } from '../app.js';
 
 const LIST_SELECT = `SELECT m.id, m.mailbox_id, mb.email_address AS mailbox_email, mb.display_name AS mailbox_name, mb.label_color,
@@ -24,12 +25,17 @@ export function registerDeviceRoutes(app: FastifyInstance, deps: Deps) {
   app.put('/v1/devices/current/push', authed, async (req) => {
     const body = parse(z.object({
       token: z.string().min(10).max(4096),
-      provider: z.enum(['expo', 'fcm']).default('expo'),
+      provider: z.enum(['expo', 'fcm', 'webpush']).default('expo'),
     }), req.body);
     if (body.provider === 'expo' && !/^Expo(nent)?PushToken\[[A-Za-z0-9_-]+\]$/.test(body.token)) {
       throw new AppError(400, 'validation_failed', 'Not an Expo push token.');
     }
     if (body.provider === 'fcm' && !/^[A-Za-z0-9_:-]{20,}$/.test(body.token)) throw new AppError(400, 'validation_failed', 'Not an FCM token.');
+    if (body.provider === 'webpush') {
+      const sub = parseWebPushToken(body.token, deps.cfg.push.webPushAllowedHosts);
+      if (!sub) throw new AppError(400, 'validation_failed', 'Not a supported browser push subscription.');
+      body.token = JSON.stringify(sub);
+    }
     const uid = uidOf(req);
     const ok = await withUser(db.api, uid, async (c) => {
       const { rows } = await c.query<{ device_id: string | null }>(`SELECT device_id FROM sessions WHERE id = $1`, [req.auth!.sessionId]);

@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { Body, Button, Field, Message, Screen, Title } from '../../components/ui';
 import { ApiError, api } from '../../lib/api';
 import { useAuth } from '../../lib/auth';
+import { InstallApp } from '../../components/InstallApp';
 
 export default function Login() {
   const { signIn } = useAuth();
@@ -29,7 +30,7 @@ export default function Login() {
 
   return (
     <Screen>
-      <Title>Email Platform</Title>
+      <Title>AllWebMails</Title>
       <Body muted style={{ marginBottom: 20 }}>Sign in with the Gmail address you registered with.</Body>
       <Field label="Gmail address" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" textContentType="username" />
       <Field label="Password" value={password} onChangeText={setPassword} secureTextEntry autoComplete="password" textContentType="password" onSubmitEditing={submit} />
@@ -44,6 +45,7 @@ export default function Login() {
       <Button title="Sign in" onPress={submit} busy={busy} disabled={!email || !password} />
       <Button title="Forgot password?" variant="link" onPress={() => router.push('/forgot-password')} />
       <Button title="Create an account" variant="secondary" onPress={() => router.push('/register')} />
+      <InstallApp />
     </Screen>
   );
 }

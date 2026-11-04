@@ -14,6 +14,11 @@ import type { Deps } from '../app.js';
 
 export const REFRESH_IDLE_DAYS = 30;
 export const REFRESH_ABSOLUTE_DAYS = 180;
+/** The web app keeps its refresh token in this cookie (HttpOnly: page scripts can never read it). */
+export const WEB_REFRESH_COOKIE = 'awm_rt';
+export const webCookieOptions = (secure: boolean) => ({
+  httpOnly: true, secure, sameSite: 'strict' as const, path: '/v1/auth', maxAge: REFRESH_ABSOLUTE_DAYS * 86_400,
+});
 const VERIFY_TTL_HOURS = 24;
 const RESET_TTL_MINUTES = 30;
 
@@ -207,7 +212,7 @@ export function registerAuthRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // -------------------------------------------------------------------------
-  app.post('/v1/auth/login', { config: { rateLimit: { max: 30, timeWindow: '15 minutes' } } }, async (req) => {
+  app.post('/v1/auth/login', { config: { rateLimit: { max: 30, timeWindow: '15 minutes' } } }, async (req, reply) => {
     const body = parse(z.object({
       email: emailField,
       password: passwordField,
@@ -275,6 +280,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: Deps) {
       return createSession(c, user.id, body.device.platform === 'web' ? 'web' : 'mobile', body.device, req);
     });
     const access = await signer.signAccess({ sub: user.id, sid: session.sessionId });
+    if (body.device.platform === 'web') {
+      reply.setCookie(WEB_REFRESH_COOKIE, session.refreshToken, webCookieOptions(deps.cfg.cookieSecure));
+      return { accessToken: access.token, accessTokenExpiresAt: access.expiresAt.toISOString(), refreshToken: null, account: toAccount(user) };
+    }
     return {
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt.toISOString(),
@@ -284,9 +293,14 @@ export function registerAuthRoutes(app: FastifyInstance, deps: Deps) {
   });
 
   // -------------------------------------------------------------------------
-  app.post('/v1/auth/refresh', { config: { rateLimit: { max: 60, timeWindow: '15 minutes' } } }, async (req) => {
-    const body = parse(z.object({ refreshToken: z.string().min(20).max(200) }), req.body);
-    const hash = sha256(body.refreshToken);
+  app.post('/v1/auth/refresh', { config: { rateLimit: { max: 60, timeWindow: '15 minutes' } } }, async (req, reply) => {
+    const body = parse(z.object({ refreshToken: z.string().min(20).max(200).optional() }), req.body ?? {});
+    // Web app: token from the cookie. The custom header cannot be sent cross-site without CORS approval (CSRF guard).
+    const fromCookie = !body.refreshToken;
+    const presented = body.refreshToken ?? req.cookies[WEB_REFRESH_COOKIE];
+    if (fromCookie && req.headers['x-requested-with'] !== 'awm') throw new AppError(403, 'csrf_failed', 'Request refused.');
+    if (!presented || presented.length < 20 || presented.length > 200) throw new AppError(401, 'session_revoked', 'Your session has ended. Please sign in again.');
+    const hash = sha256(presented);
     const newToken = randomToken();
     const result = await tx(db.auth, async (c) => {
       const { rows } = await c.query<{ id: string; user_id: string }>(
@@ -315,6 +329,10 @@ export function registerAuthRoutes(app: FastifyInstance, deps: Deps) {
       throw new AppError(401, 'session_revoked', 'Your session has ended. Please sign in again.');
     }
     const access = await signer.signAccess({ sub: user.id, sid: result.id });
+    if (fromCookie) {
+      reply.setCookie(WEB_REFRESH_COOKIE, newToken, webCookieOptions(deps.cfg.cookieSecure));
+      return { accessToken: access.token, accessTokenExpiresAt: access.expiresAt.toISOString(), refreshToken: null, account: toAccount(user) };
+    }
     return {
       accessToken: access.token,
       accessTokenExpiresAt: access.expiresAt.toISOString(),

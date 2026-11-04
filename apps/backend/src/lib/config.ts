@@ -84,6 +84,10 @@ const schema = z.object({
   EXPO_PUSH_URL: z.string().url().default('https://exp.host/--/api/v2/push/send'),
   FCM_API_BASE: z.string().url().default('https://fcm.googleapis.com'),
   FCM_TOKEN_URL: z.string().url().default('https://oauth2.googleapis.com/token'),
+  WEB_PUSH_PUBLIC_KEY: z.string().optional(),
+  WEB_PUSH_SUBJECT: z.string().default('mailto:admin@allwebmails.com'),
+  WEB_PUSH_ALLOWED_HOSTS: z.string().default('fcm.googleapis.com,updates.push.services.mozilla.com,push.services.mozilla.com,web.push.apple.com,notify.windows.com'),
+  WEB_APP_DIR: z.string().optional(),
   MAIL_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
 });
 
@@ -103,6 +107,7 @@ export interface Config {
   latestAppVersion?: string;
   appDownloadUrl?: string;
   jobStaleSeconds: number;
+  webAppDir?: string;
   /** Per-IP request limits (in memory, per process). Login throttling in the database is always on. */
   httpRateLimit: boolean;
   /** Where encrypted file copies (attachments, uploads) are stored. */
@@ -125,6 +130,9 @@ export interface Config {
     fcmApiBase: string;
     fcmTokenUrl: string;
     fcmServiceAccountJson?: string;
+    /** Web Push (VAPID) for the PWA. */
+    webPush: { publicKey: string; privateKey: string; subject: string } | null;
+    webPushAllowedHosts: string[];
   };
   mail: {
     /** Development/test only: allow mail servers on private/loopback addresses. */
@@ -168,6 +176,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     latestAppVersion: e.LATEST_APP_VERSION,
     appDownloadUrl: e.APP_DOWNLOAD_URL,
     jobStaleSeconds: e.JOB_STALE_SECONDS,
+    webAppDir: e.WEB_APP_DIR,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
     blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
     blobS3: e.BLOB_DRIVER === 's3' ? s3Config(env, e) : null,
@@ -188,6 +197,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       fcmApiBase: e.FCM_API_BASE.replace(/\/$/, ''),
       fcmTokenUrl: e.FCM_TOKEN_URL,
       fcmServiceAccountJson: secret(env, 'FCM_SERVICE_ACCOUNT'),
+      webPush: e.WEB_PUSH_PUBLIC_KEY && secret(env, 'WEB_PUSH_PRIVATE_KEY')
+        ? { publicKey: e.WEB_PUSH_PUBLIC_KEY, privateKey: secret(env, 'WEB_PUSH_PRIVATE_KEY')!, subject: e.WEB_PUSH_SUBJECT }
+        : null,
+      webPushAllowedHosts: e.WEB_PUSH_ALLOWED_HOSTS.split(',').map((h) => h.trim().toLowerCase()).filter(Boolean),
     },
     mail: {
       allowPrivateHosts: e.NODE_ENV !== 'production' && (e.MAIL_ALLOW_PRIVATE_HOSTS ?? false),

@@ -29,7 +29,7 @@ export default function AppLayout() {
       </View>
     ) : null}
     <Stack screenOptions={{ headerStyle: { backgroundColor: t.surface }, headerTintColor: t.text, contentStyle: { backgroundColor: t.bg } }}>
-      <Stack.Screen name="home" options={{ title: 'Email Platform' }} />
+      <Stack.Screen name="home" options={{ title: 'AllWebMails' }} />
       <Stack.Screen name="sessions" options={{ title: 'Signed-in devices' }} />
       <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
       <Stack.Screen name="mailbox-add" options={{ title: 'Add mailbox' }} />

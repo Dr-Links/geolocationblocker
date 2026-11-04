@@ -44,3 +44,6 @@ export function handleNotificationTaps(): () => void {
   });
   return () => sub.remove();
 }
+
+/** Phones: the server forgets the token on sign-out; nothing to do locally. */
+export async function unsubscribeLocalPush(): Promise<void> {}

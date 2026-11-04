@@ -63,3 +63,23 @@ export async function cacheSet(key: string, value: unknown): Promise<void> {
     // The cache is best effort; the app keeps working online without it.
   }
 }
+
+// ---- Offline action queue -------------------------------------------------------------------------------
+export interface QueueRow { id: string; kind: string; payload: string; label: string | null; created_at: number; attempts: number; last_error: string | null; failed: number }
+
+export async function queueAdd(id: string, kind: string, payload: unknown, label: string) {
+  const db = await localDb();
+  await db.runAsync('INSERT OR IGNORE INTO queue (id, kind, payload, label, created_at) VALUES (?, ?, ?, ?, ?)', [id, kind, JSON.stringify(payload), label, Date.now()]);
+}
+export async function queueAll(pendingOnly: boolean): Promise<QueueRow[]> {
+  const db = await localDb();
+  return db.getAllAsync<QueueRow>(`SELECT * FROM queue ${pendingOnly ? 'WHERE failed = 0' : ''} ORDER BY created_at`);
+}
+export async function queueDelete(id: string) {
+  const db = await localDb();
+  await db.runAsync('DELETE FROM queue WHERE id = ?', [id]);
+}
+export async function queueFail(id: string, error: string) {
+  const db = await localDb();
+  await db.runAsync('UPDATE queue SET attempts = attempts + 1, last_error = ?, failed = 1 WHERE id = ?', [error, id]);
+}

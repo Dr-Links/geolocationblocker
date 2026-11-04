@@ -1,11 +1,16 @@
 import type { Account, ApiErrorBody, ComposeSuggestion, DraftDto, SignatureDto, TemplateDto, UploadDto, SavedSearch, SearchFilters, ThreadSummary, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
-import { File } from 'expo-file-system';
-import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { API_URL, APP_VERSION } from './config';
+import { tokenStore } from './tokenstore';
+import { uploadBytes } from './upload';
 
-const REFRESH_KEY = 'refresh_token';
+function webDeviceName(): string {
+  const ua = typeof navigator === 'undefined' ? '' : navigator.userAgent;
+  const browser = /Edg\//.test(ua) ? 'Edge' : /Firefox\//.test(ua) ? 'Firefox' : /Chrome\//.test(ua) ? 'Chrome' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+  const os = /Android/.test(ua) ? 'Android' : /iPhone|iPad/.test(ua) ? 'iOS' : /Mac OS X/.test(ua) ? 'macOS' : /Windows/.test(ua) ? 'Windows' : /Linux/.test(ua) ? 'Linux' : '';
+  return `${browser}${os ? ` on ${os}` : ''} (web app)`;
+}
 
 export class ApiError extends Error {
   constructor(public status: number, public code: string, message: string, public details?: unknown) {
@@ -37,14 +42,16 @@ export function setSignedOutHandler(fn: () => void) {
   onSignedOut = fn;
 }
 
-async function raw<T>(method: string, path: string, body?: unknown, token?: string | null): Promise<T> {
+async function raw<T>(method: string, path: string, body?: unknown, token?: string | null, extra: Record<string, string> = {}): Promise<T> {
   let res: Response;
   try {
     res = await fetch(`${API_URL}${path}`, {
       method,
+      credentials: 'same-origin',
       headers: {
         ...(body !== undefined ? { 'content-type': 'application/json' } : {}),
         ...(token ? { authorization: `Bearer ${token}` } : {}),
+        ...extra,
       },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
@@ -61,16 +68,23 @@ async function raw<T>(method: string, path: string, body?: unknown, token?: stri
 
 async function storeSession(r: LoginResponse) {
   accessToken = r.accessToken;
-  await SecureStore.setItemAsync(REFRESH_KEY, r.refreshToken);
+  await tokenStore.set(r.refreshToken);
 }
 
 /** Single-flight refresh: concurrent callers share one request so a rotated token is never replayed. */
 export function refreshSession(): Promise<boolean> {
   refreshing ??= (async () => {
     try {
-      const token = await SecureStore.getItemAsync(REFRESH_KEY);
-      if (!token) return false;
-      const r = await raw<LoginResponse>('POST', '/v1/auth/refresh', { refreshToken: token });
+      let r: LoginResponse;
+      if (tokenStore.holdsToken) {
+        const token = await tokenStore.get();
+        if (!token) return false;
+        r = await raw<LoginResponse>('POST', '/v1/auth/refresh', { refreshToken: token });
+      } else {
+        if (!(await tokenStore.hasSession())) return false;
+        // Web: the token is in an HttpOnly cookie; the header marks the request as the app's own.
+        r = await raw<LoginResponse>('POST', '/v1/auth/refresh', {}, null, { 'x-requested-with': 'awm' });
+      }
       await storeSession(r);
       return true;
     } catch (err) {
@@ -88,7 +102,7 @@ export function refreshSession(): Promise<boolean> {
 
 export async function clearSession() {
   accessToken = null;
-  await SecureStore.deleteItemAsync(REFRESH_KEY);
+  await tokenStore.clear();
 }
 
 async function authed<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -131,8 +145,8 @@ export const api = {
       email,
       password,
       device: {
-        platform: Platform.OS === 'ios' ? 'ios' : 'android',
-        name: (Device.deviceName ?? Device.modelName ?? undefined)?.slice(0, 100),
+        platform: Platform.OS === 'web' ? 'web' : Platform.OS === 'ios' ? 'ios' : 'android',
+        name: (Platform.OS === 'web' ? webDeviceName() : (Device.deviceName ?? Device.modelName ?? undefined))?.slice(0, 100),
         appVersion: APP_VERSION,
       },
     });
@@ -146,14 +160,14 @@ export const api = {
       await clearSession();
     }
   },
-  hasStoredSession: async () => (await SecureStore.getItemAsync(REFRESH_KEY)) !== null,
+  hasStoredSession: () => tokenStore.hasSession(),
   me: () => authed<{ account: Account; accessPeriods: Array<{ kind: string; startsAt: string; endsAt: string }> }>('GET', '/v1/me'),
   updateTimezone: (timezone: string) => authed<{ account: Account }>('PATCH', '/v1/me', { timezone }),
   changePassword: (currentPassword: string, newPassword: string) =>
     authed<{ message: string }>('POST', '/v1/me/password', { currentPassword, newPassword }),
   sessions: () => authed<{ sessions: SessionInfo[] }>('GET', '/v1/me/sessions'),
   revokeSession: (id: string) => authed<void>('DELETE', `/v1/me/sessions/${id}`),
-  config: () => raw<{ minimumSupportedAppVersion: string }>('GET', '/v1/config'),
+  config: () => raw<{ minimumSupportedAppVersion: string; latestAppVersion: string | null; appDownloadUrl: string | null; webPushPublicKey: string | null }>('GET', '/v1/config'),
   mailboxes: () => authed<{ mailboxes: MailboxDto[] }>('GET', '/v1/mailboxes'),
   mailbox: (id: string) => authed<{ mailbox: MailboxDto; events: Array<{ category: string; severity: string; code: string; detail: string | null; occurredAt: string; resolvedAt: string | null }> }>('GET', `/v1/mailboxes/${id}`),
   connectMailbox: (input: ConnectInput) => authed<{ mailbox: MailboxDto }>('POST', '/v1/mailboxes', input),
@@ -180,7 +194,7 @@ export const api = {
     subject: string; text: string; html?: string | null; idempotencyKey: string; confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean;
     uploadIds?: string[]; signatureId?: string | null; includeOriginalAttachments?: boolean; sendAt?: string; timeZone?: string; draftId?: string;
   }) => authed<{ outbound: OutboundDto }>('POST', '/v1/outbound', input),
-  registerPushToken: (token: string, provider: 'expo' | 'fcm') => authed('PUT', '/v1/devices/current/push', { token, provider }),
+  registerPushToken: (token: string, provider: 'expo' | 'fcm' | 'webpush') => authed('PUT', '/v1/devices/current/push', { token, provider }),
   unregisterPush: () => authed<void>('DELETE', '/v1/devices/current/push'),
   setReminder: (messageId: string, remindAt: Date, onlyIfNoReply: boolean) =>
     authed<{ reminder: { id: string } }>('PUT', `/v1/messages/${messageId}/reminder`, { remindAt: remindAt.toISOString(), onlyIfNoReply }),
@@ -201,7 +215,7 @@ export const api = {
   /** Uploads a local file (content:// or file:// URI) as raw bytes; the server detects its real type. */
   async uploadFile(uri: string, filename: string, inline = false): Promise<UploadDto> {
     const url = `${API_URL}/v1/uploads?filename=${encodeURIComponent(filename)}${inline ? '&inline=1' : ''}`;
-    const res = await new File(uri).upload(url, { httpMethod: 'PUT', headers: { ...(await authHeaders()), 'content-type': 'application/octet-stream' } });
+    const res = await uploadBytes(uri, url, { ...(await authHeaders()), 'content-type': 'application/octet-stream' });
     const body = JSON.parse(res.body || '{}');
     if (res.status !== 201) throw new ApiError(res.status, body.error?.code ?? 'error', body.error?.message ?? `Upload failed (${res.status})`);
     return body.upload as UploadDto;

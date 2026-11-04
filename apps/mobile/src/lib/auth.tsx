@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import { api, setSignedOutHandler } from './api';
 import { deviceTimeZone } from './format';
 import { wipeLocalData } from './localdb';
+import { unsubscribeLocalPush } from './push';
 
 type AuthState =
   | { kind: 'loading' }
@@ -55,6 +56,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     },
     async signOut() {
       await api.unregisterPush().catch(() => undefined);
+      await unsubscribeLocalPush();
       await api.logout().catch(() => undefined);
       await wipeLocalData();
       setState({ kind: 'signedOut' });

@@ -1,5 +1,5 @@
 import type { MailboxDto, SignatureDto, TemplateDto, UploadDto } from '@app/shared';
-import DateTimePicker, { DateTimePickerAndroid } from '@react-native-community/datetimepicker';
+import { DateTimeInput, openSystemDateTimePicker } from '../../components/DateTimeInput';
 import { randomUUID } from 'expo-crypto';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
@@ -165,14 +165,10 @@ export default function Compose() {
 
   const pickSendTime = () => {
     const start = sendAt ?? new Date(Date.now() + 3600_000);
-    if (Platform.OS === 'android') {
-      DateTimePickerAndroid.open({ value: start, mode: 'date', minimumDate: new Date(), onChange: (ev, date) => {
-        if (ev.type !== 'set' || !date) return;
-        DateTimePickerAndroid.open({ value: date, mode: 'time', onChange: (ev2, time) => {
-          if (ev2.type === 'set' && time) setSendAt(time);
-        } });
-      } });
-    } else setIosPicker(true);
+    if (!openSystemDateTimePicker(start, setSendAt)) {
+      if (!sendAt) setSendAt(start);
+      setIosPicker(true);
+    }
   };
 
   const submit = async (opts: { confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean } = {}) => {
@@ -313,7 +309,7 @@ export default function Compose() {
         <Modal transparent animationType="slide" onRequestClose={() => setIosPicker(false)}>
           <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}>
             <View style={{ backgroundColor: t.surface, padding: 16 }}>
-              <DateTimePicker value={sendAt ?? new Date(Date.now() + 3600_000)} mode="datetime" minimumDate={new Date()} onChange={(_e, d) => d && setSendAt(d)} />
+              <DateTimeInput value={sendAt ?? new Date(Date.now() + 3600_000)} onChange={setSendAt} />
               <Button title="Done" onPress={() => setIosPicker(false)} />
             </View>
           </View>

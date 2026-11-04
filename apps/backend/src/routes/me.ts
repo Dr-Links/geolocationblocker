@@ -1,4 +1,5 @@
 import { isValidTimeZone, type SessionInfo } from '@app/shared';
+import { WEB_REFRESH_COOKIE } from './auth.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { iso, toAccount, type UserRow } from '../lib/account.js';
@@ -86,6 +87,7 @@ export function registerMeRoutes(app: FastifyInstance, deps: Deps) {
       await c.query(`UPDATE sessions SET revoked_at = now(), revoked_reason = 'logout' WHERE id = $1`, [req.auth!.sessionId]);
       await c.query(`UPDATE devices SET revoked_at = now() WHERE id = (SELECT device_id FROM sessions WHERE id = $1)`, [req.auth!.sessionId]);
     });
+    reply.clearCookie(WEB_REFRESH_COOKIE, { path: '/v1/auth' });
     return reply.code(204).send();
   });
 

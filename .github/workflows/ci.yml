@@ -67,3 +67,44 @@ jobs:
       - run: npm ci
       - run: npx tsc --noEmit
       - run: npx expo export --platform android --output-dir /tmp/expo-export
+      - run: npx expo export --platform web --output-dir /tmp/expo-web
+
+  # The real web app (PWA) build in Chromium against the real backend and IMAP server.
+  pwa-e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      TEST_PG_HOST: localhost
+      TEST_PG_PORT: '5432'
+      TEST_PG_SUPERUSER: postgres
+      TEST_PG_PASSWORD: postgres
+      MAILTEST_EXTERNAL: '1'
+      WEB_E2E_DIR: /tmp/awm-web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Start test IMAP server (Dovecot)
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q dovecot-imapd
+          sudo systemctl stop dovecot || true
+          sudo bash apps/backend/test/mailserver/start-dovecot.sh
+      - run: npm ci
+      - name: Build the web app
+        working-directory: apps/mobile
+        run: npm ci && npx expo export --platform web --output-dir /tmp/awm-web
+      - name: Install Playwright (Chromium)
+        run: npm install --no-save playwright@1.56.1 && npx playwright install --with-deps chromium
+      - name: Browser test
+        working-directory: apps/backend
+        run: npx vitest run test/e2e/pwa.test.ts

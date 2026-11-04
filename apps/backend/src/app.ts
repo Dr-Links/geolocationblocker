@@ -1,3 +1,5 @@
+import cookie from '@fastify/cookie';
+import { registerWebApp, spaFallback, webAppDir } from './web/webapp.js';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { toAccount, type UserRow } from './lib/account.js';
 import type { Config } from './lib/config.js';
@@ -43,7 +45,10 @@ declare module 'fastify' {
 
 export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?: DiscoveryDeps }): Promise<FastifyInstance> {
   const deps: Deps = { ...input, discovery: input.discovery ?? defaultDiscoveryDeps(input.cfg) };
-  const app = await createHttp(deps.cfg);
+  const webDir = webAppDir(deps.cfg);
+  const app = await createHttp(deps.cfg, { notFound: spaFallback(webDir) });
+  await app.register(cookie);
+  if (webDir) await registerWebApp(app, webDir);
   app.decorateRequest('auth', undefined);
 
   // Verifies the access token AND that its session is still live, on every request,
@@ -102,6 +107,7 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
     minimumSupportedAppVersion: deps.cfg.minAppVersion,
     latestAppVersion: deps.cfg.latestAppVersion ?? null,
     appDownloadUrl: deps.cfg.appDownloadUrl ?? null,
+    webPushPublicKey: deps.cfg.push.webPush?.publicKey ?? null,
   }));
   registerAuthRoutes(app, deps);
   registerMeRoutes(app, deps);

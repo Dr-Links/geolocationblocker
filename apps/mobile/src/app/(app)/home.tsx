@@ -5,6 +5,7 @@ import { Pressable } from 'react-native';
 import { api, type StorageInfo } from '../../lib/api';
 import { Body, Button, Card, Screen, Title, useTheme } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
+import { InstallApp } from '../../components/InstallApp';
 import { daysLeft, formatDateTime } from '../../lib/format';
 
 export default function Home() {
@@ -68,6 +69,7 @@ export default function Home() {
         ))}
         <Button title="Add mailbox" onPress={() => router.push('/mailbox-add')} />
       </Card>
+      <InstallApp />
       <Button title="Signed-in devices" variant="secondary" onPress={() => router.push('/sessions')} />
       <Button title="Change password" variant="secondary" onPress={() => router.push('/change-password')} />
       <Button title="Sign out" variant="link" onPress={signOut} />

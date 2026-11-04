@@ -65,14 +65,14 @@ async function allDevices(c: Tx) {
 
 /** Sends pending notifications. Retries up to 3 times; tokens reported as unregistered are switched off. */
 export async function dispatchNotifications(cfg: Config, db: Db, log: (m: string) => void = console.log,
-  providers: Partial<Record<'expo' | 'fcm', PushProvider | null>> = {}): Promise<{ sent: number; failed: number }> {
+  providers: Partial<Record<'expo' | 'fcm' | 'webpush', PushProvider | null>> = {}): Promise<{ sent: number; failed: number }> {
   let sent = 0;
   let failed = 0;
   // One round per call: notifications that failed temporarily are retried on the next run, not immediately.
   {
-    const { rows } = await db.query<{ n_id: number; n_token: string | null; n_provider: 'expo' | 'fcm' | null; n_title: string; n_body: string | null;
+    const { rows } = await db.query<{ n_id: number; n_token: string | null; n_provider: 'expo' | 'fcm' | 'webpush' | null; n_title: string; n_body: string | null;
                                        n_data: Record<string, unknown>; n_kind: string; n_attempts: number }>(`SELECT * FROM app.claim_notifications(500)`);
-    const byProvider = new Map<'expo' | 'fcm', typeof rows>();
+    const byProvider = new Map<'expo' | 'fcm' | 'webpush', typeof rows>();
     for (const r of rows) {
       const p = r.n_provider ?? 'expo';
       byProvider.set(p, [...(byProvider.get(p) ?? []), r]);

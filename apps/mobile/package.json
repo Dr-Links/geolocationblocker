@@ -4,6 +4,7 @@
   "main": "expo-router/entry",
   "dependencies": {
     "@app/shared": "file:../../packages/shared",
+    "@expo/metro-runtime": "^58.0.14",
     "@react-native-community/datetimepicker": "9.2.1",
     "@react-native-community/netinfo": "12.0.1",
     "expo": "~58.0.16",
@@ -27,6 +28,7 @@
     "react-native": "0.88.0",
     "react-native-safe-area-context": "~5.10.1",
     "react-native-screens": "~4.30.0",
+    "react-native-web": "^0.21.4",
     "react-native-webview": "14.0.1"
   },
   "devDependencies": {

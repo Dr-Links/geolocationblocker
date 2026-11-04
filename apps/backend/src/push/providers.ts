@@ -1,4 +1,5 @@
 import { importPKCS8, SignJWT } from 'jose';
+import webpush from 'web-push';
 import type { Config } from '../lib/config.js';
 
 export interface PushMessage {
@@ -104,7 +105,49 @@ export class FcmPushProvider implements PushProvider {
   }
 }
 
-export function pushProvider(cfg: Config, provider: 'expo' | 'fcm'): PushProvider | null {
+export interface WebPushSubscription { endpoint: string; keys: { p256dh: string; auth: string } }
+
+/** Only push services of the major browsers are contacted (the endpoint comes from the browser, so it is checked). */
+export function parseWebPushToken(token: string, allowedHosts: string[]): WebPushSubscription | null {
+  try {
+    const s = JSON.parse(token) as WebPushSubscription;
+    const u = new URL(s.endpoint);
+    const host = u.hostname.toLowerCase();
+    const okHost = allowedHosts.some((h) => host === h || host.endsWith(`.${h}`));
+    const okScheme = u.protocol === 'https:' || (u.protocol === 'http:' && (host === '127.0.0.1' || host === 'localhost')); // plain http: local tests only
+    if (!okHost || !okScheme || !/^[A-Za-z0-9_-]{40,200}$/.test(s.keys?.p256dh ?? '') || !/^[A-Za-z0-9_-]{10,50}$/.test(s.keys?.auth ?? '')) return null;
+    return { endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth } };
+  } catch {
+    return null;
+  }
+}
+
+/** Web Push (RFC 8030/8291/8292) for the installed web app; the payload is end-to-end encrypted to the browser. */
+export class WebPushProvider implements PushProvider {
+  constructor(private readonly v: { publicKey: string; privateKey: string; subject: string }, private readonly allowedHosts: string[]) {}
+  async send(messages: PushMessage[]): Promise<PushResult[]> {
+    return Promise.all(messages.map(async (m): Promise<PushResult> => {
+      const sub = parseWebPushToken(m.token, this.allowedHosts);
+      if (!sub) return { ok: false, disableToken: true, error: 'invalid web push subscription' };
+      try {
+        // The library encrypts the payload and signs the VAPID header; the request itself is sent with fetch.
+        const req = webpush.generateRequestDetails(sub, JSON.stringify({ title: m.title, body: m.body ?? undefined, data: m.data, tag: m.group }), {
+          vapidDetails: this.v, TTL: 24 * 3600, urgency: 'high', ...(m.group ? { topic: m.group.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 32) } : {}),
+        });
+        const res = await fetch(req.endpoint, { method: 'POST', headers: req.headers as Record<string, string>, body: req.body ? new Uint8Array(req.body) : undefined,
+          redirect: 'error', signal: AbortSignal.timeout(15_000) });
+        await res.arrayBuffer().catch(() => undefined);
+        if (res.ok) return { ok: true, disableToken: false };
+        return { ok: false, disableToken: res.status === 404 || res.status === 410, error: `web push failed (HTTP ${res.status})` };
+      } catch (err) {
+        return { ok: false, disableToken: false, error: `web push failed: ${(err as Error).message}`.slice(0, 200) };
+      }
+    }));
+  }
+}
+
+export function pushProvider(cfg: Config, provider: 'expo' | 'fcm' | 'webpush'): PushProvider | null {
+  if (provider === 'webpush') return cfg.push.webPush ? new WebPushProvider(cfg.push.webPush, cfg.push.webPushAllowedHosts) : null;
   if (cfg.push.provider === 'none') return null;
   if (provider === 'fcm') return cfg.push.fcmServiceAccountJson ? new FcmPushProvider(cfg.push.fcmServiceAccountJson, cfg.push.fcmApiBase, cfg.push.fcmTokenUrl) : null;
   return new ExpoPushProvider(cfg.push.expoUrl, cfg.push.expoAccessToken);

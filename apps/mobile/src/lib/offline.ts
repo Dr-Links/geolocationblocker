@@ -1,7 +1,7 @@
 import NetInfo from '@react-native-community/netinfo';
 import { useEffect, useState } from 'react';
 import { ApiError, api } from './api';
-import { cacheGet, cacheSet, localDb } from './localdb';
+import { cacheGet, cacheSet, queueAdd, queueAll, queueDelete, queueFail } from './localdb';
 
 export const isNetworkError = (e: unknown) => e instanceof ApiError && e.code === 'network_error';
 
@@ -38,24 +38,20 @@ export const onQueueChange = (fn: () => void) => { listeners.add(fn); return () 
 const changed = () => listeners.forEach((f) => f());
 
 export async function enqueue(id: string, item: QueueItem, label: string) {
-  const db = await localDb();
-  await db.runAsync('INSERT OR IGNORE INTO queue (id, kind, payload, label, created_at) VALUES (?, ?, ?, ?, ?)',
-    [id, item.kind, JSON.stringify(item.payload), label, Date.now()]);
+  await queueAdd(id, item.kind, item.payload, label);
   changed();
 }
 
 export async function queued(): Promise<QueuedRow[]> {
   try {
-    const db = await localDb();
-    return await db.getAllAsync<QueuedRow>('SELECT id, kind, label, created_at, attempts, last_error, failed FROM queue ORDER BY created_at');
+    return (await queueAll(false)).map(({ payload: _p, ...r }) => r);
   } catch {
     return [];
   }
 }
 
 export async function removeQueued(id: string) {
-  const db = await localDb();
-  await db.runAsync('DELETE FROM queue WHERE id = ?', [id]);
+  await queueDelete(id);
   changed();
 }
 
@@ -69,19 +65,17 @@ export function flushQueue(): Promise<number> {
   flushing ??= (async () => {
     let done = 0;
     try {
-      const db = await localDb();
-      const rows = await db.getAllAsync<{ id: string; kind: string; payload: string; attempts: number }>(
-        'SELECT id, kind, payload, attempts FROM queue WHERE failed = 0 ORDER BY created_at');
+      const rows = await queueAll(true);
       for (const r of rows) {
         try {
           const p = JSON.parse(r.payload);
           if (r.kind === 'action') await api.messageAction(p.messageId, p.action, { ...p.extra, clientOpId: r.id });
           else if (r.kind === 'send') await api.send(p);
-          await db.runAsync('DELETE FROM queue WHERE id = ?', [r.id]);
+          await queueDelete(r.id);
           done++;
         } catch (e) {
           if (isNetworkError(e)) break;
-          await db.runAsync('UPDATE queue SET attempts = attempts + 1, last_error = ?, failed = 1 WHERE id = ?', [(e as Error).message, r.id]);
+          await queueFail(r.id, (e as Error).message);
         }
       }
     } finally {
