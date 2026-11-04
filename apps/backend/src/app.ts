@@ -9,6 +9,7 @@ import type { TokenSigner } from './lib/jwt.js';
 import { defaultDiscoveryDeps, type DiscoveryDeps } from './mail/discovery.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerMailboxRoutes } from './routes/mailboxes.js';
+import { registerMessageRoutes } from './routes/messages.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
 
@@ -73,5 +74,6 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   registerMeRoutes(app, deps);
   registerPageRoutes(app, deps);
   registerMailboxRoutes(app, deps);
+  registerMessageRoutes(app, deps);
   return app;
 }

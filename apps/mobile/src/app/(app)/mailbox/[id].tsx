@@ -37,6 +37,7 @@ export default function MailboxDetail() {
       </Card>
       <Message text={msg?.text} kind={msg?.ok ? 'ok' : 'error'} />
 
+      <Button title="Folders and messages" onPress={() => router.push({ pathname: '/folders/[mailboxId]', params: { mailboxId: m.id, email: m.email } })} />
       {m.status !== 'disconnected' && !reconnect ? (
         <>
           {m.status === 'auth_failed' ? <Button title="Enter the new mailbox password" onPress={() => setReconnect(true)} /> : null}

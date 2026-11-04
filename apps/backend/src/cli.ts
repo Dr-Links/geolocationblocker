@@ -15,6 +15,7 @@ import { createMailer } from './lib/mailer.js';
 import { migrate } from './lib/migrate.js';
 import { hashPassword } from './lib/passwords.js';
 import { schedulerTick } from './scheduler.js';
+import { runSyncPass } from './sync/runner.js';
 
 const HELP = `Usage: node dist/cli.js <command>
 
@@ -26,6 +27,9 @@ const HELP = `Usage: node dist/cli.js <command>
   keys:generate           Print a new JWT_PRIVATE_KEY and CREDENTIAL_KEY
   scheduler:tick          Run one scheduler pass (use from cron every minute)
   scheduler:run           Run the scheduler every 30 s until stopped
+  sync:run [--seconds 50] Sync due mailboxes for up to N seconds, then exit (use from cron every minute)
+  sync:daemon             Keep syncing until stopped (for a server that allows permanent processes)
+  cron                    One-minute cron entry point: scheduler tick, then sync for the rest of the minute
   check:outbound          Test whether this server can reach external mail servers (Milestone 2 prerequisite)
 `;
 
@@ -198,6 +202,31 @@ async function main() {
       for (let i = 0; i < 30 && !stop; i++) await new Promise((r) => setTimeout(r, 1000));
     }
     await worker.end();
+    return;
+  }
+
+  if (cmd === 'sync:run' || cmd === 'sync:daemon' || cmd === 'cron') {
+    const worker = createPool(cfg, 'worker', 5);
+    const mailer = createMailer(cfg);
+    const seconds = Number(arg('seconds') ?? (cmd === 'cron' ? 50 : 50));
+    const started = Date.now();
+    let stop = false;
+    process.on('SIGTERM', () => { stop = true; });
+    process.on('SIGINT', () => { stop = true; });
+    try {
+      if (cmd === 'cron') {
+        await schedulerTick(worker, cfg, mailer).catch((e: Error) => console.error(`scheduler tick failed: ${e.message}`));
+      }
+      do {
+        const budget = cmd === 'sync:daemon' ? 55_000 : Math.max(5_000, seconds * 1000 - (Date.now() - started));
+        const results = await runSyncPass(cfg, worker, { budgetMs: budget });
+        const n = results.reduce((a, r) => a + r.newMessages, 0);
+        if (results.length) console.log(`synced ${results.length} mailbox(es), ${n} new message(s), ${results.filter((r) => !r.ok).length} failed`);
+        if (cmd === 'sync:daemon' && !stop) await new Promise((r) => setTimeout(r, results.length ? 1000 : 10_000));
+      } while (cmd === 'sync:daemon' && !stop);
+    } finally {
+      await worker.end();
+    }
     return;
   }
 

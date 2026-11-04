@@ -15,6 +15,10 @@ export default function AppLayout() {
       <Stack.Screen name="change-password" options={{ title: 'Change password' }} />
       <Stack.Screen name="mailbox-add" options={{ title: 'Add mailbox' }} />
       <Stack.Screen name="mailbox/[id]" options={{ title: 'Mailbox' }} />
+      <Stack.Screen name="inbox" options={{ title: 'All inboxes' }} />
+      <Stack.Screen name="folders/[mailboxId]" options={{ title: 'Folders' }} />
+      <Stack.Screen name="folder/[folderId]" options={{ title: 'Folder' }} />
+      <Stack.Screen name="message/[id]" options={{ title: 'Message' }} />
     </Stack>
   );
 }

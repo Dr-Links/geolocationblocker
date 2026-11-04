@@ -223,3 +223,60 @@ export const MAILBOX_STATUS_TEXT: Record<MailboxStatus, string> = {
   paused_account: 'Paused (account inactive)',
   disconnected: 'Disconnected',
 };
+
+// ---------------------------------------------------------------------------
+// Messages
+// ---------------------------------------------------------------------------
+
+export interface MessageSummary {
+  id: string;
+  mailbox: { id: string; email: string; displayName: string | null; labelColor: string | null; status: MailboxStatus };
+  threadId: string;
+  subject: string | null;
+  from: { address: string; name: string | null } | null;
+  toSummary: string | null;
+  receivedAt: string;
+  snippet: string | null;
+  isSeen: boolean;
+  isFlagged: boolean;
+  isAnswered: boolean;
+  hasAttachments: boolean;
+  priority: 'high' | 'normal' | 'low';
+  /** A user action has not been confirmed by the mail server yet. */
+  pendingSync: boolean;
+  /** False when the message was deleted on the server and only the platform copy remains. */
+  onServer: boolean;
+}
+
+export interface AddressDto { address: string; name: string | null }
+
+export interface MessageDetail extends MessageSummary {
+  messageIdHeader: string | null;
+  sentAt: string | null;
+  sizeBytes: number | null;
+  to: AddressDto[];
+  cc: AddressDto[];
+  bcc: AddressDto[];
+  replyTo: AddressDto[];
+  fromList: AddressDto[];
+  authResults: { spf?: string; dkim?: string; dmarc?: string } | null;
+  folders: Array<{ id: string; name: string; specialUse: string | null }>;
+  body: { text: string | null; html: string | null; hasRemoteContent: boolean; remoteContentShown: boolean } | null;
+  bodyError: string | null;
+  attachments: Array<{ id: string; filename: string; mimeType: string; sizeBytes: number; isInline: boolean; risk: 'unknown' | 'low' | 'elevated' | 'dangerous'; contentId: string | null }>;
+}
+
+export interface FolderDto {
+  id: string;
+  path: string;
+  name: string;
+  specialUse: string | null;
+  serverCount: number;
+  unread: number;
+  stored: number;
+  lastSyncedAt: string | null;
+  syncComplete: boolean;
+  selectable: boolean;
+}
+
+export type MessageAction = 'mark_read' | 'mark_unread' | 'flag' | 'unflag' | 'archive' | 'trash' | 'spam' | 'not_spam' | 'move' | 'delete_forever';

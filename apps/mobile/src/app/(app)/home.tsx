@@ -30,6 +30,7 @@ export default function Home() {
           <Body style={{ color: t.warn, marginTop: 6 }}>Ends in {left} day{left === 1 ? '' : 's'}. Contact the administrator to renew.</Body>
         ) : null}
       </Card>
+      <Button title="Open all inboxes" onPress={() => router.push('/inbox')} />
       <Card>
         <Body style={{ fontWeight: '600', marginBottom: 6 }}>Mailboxes</Body>
         {mailboxes === null ? <Body muted>Loading…</Body> : mailboxes.length === 0 ? <Body muted>No mailboxes connected yet.</Body> : null}

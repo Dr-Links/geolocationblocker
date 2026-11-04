@@ -1,4 +1,4 @@
-import type { Account, ApiErrorBody, LoginResponse, MailboxDto, ServerSettingsDto, SessionInfo } from '@app/shared';
+import type { Account, ApiErrorBody, FolderDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
@@ -106,6 +106,20 @@ async function authed<T>(method: string, path: string, body?: unknown): Promise<
   }
 }
 
+/** Headers for requests made outside fetch (file downloads). Refreshes the session if needed. */
+export async function authHeaders(): Promise<Record<string, string>> {
+  if (!accessToken && !(await refreshSession())) throw new ApiError(401, 'unauthorized', 'Please sign in.');
+  return { authorization: `Bearer ${accessToken}` };
+}
+
+export interface MessageListQuery {
+  view: 'inbox' | 'folder' | 'stored_only' | 'flagged';
+  mailboxId?: string;
+  folderId?: string;
+  unread?: boolean;
+  before?: string | null;
+}
+
 export const api = {
   register: (email: string, password: string, timezone: string) =>
     raw<{ message: string }>('POST', '/v1/auth/register', { email, password, timezone }),
@@ -146,6 +160,19 @@ export const api = {
     authed<{ mailbox: MailboxDto }>('PUT', `/v1/mailboxes/${id}/connection`, input),
   renameMailbox: (id: string, displayName: string | null) => authed<{ mailbox: MailboxDto }>('PATCH', `/v1/mailboxes/${id}`, { displayName }),
   testMailbox: (id: string) => authed<{ mailbox: MailboxDto }>('POST', `/v1/mailboxes/${id}/test`, {}),
+  folders: (mailboxId: string) => authed<{ folders: FolderDto[] }>('GET', `/v1/mailboxes/${mailboxId}/folders`),
+  messages: (q: MessageListQuery) => {
+    const p = new URLSearchParams({ view: q.view });
+    if (q.mailboxId) p.set('mailboxId', q.mailboxId);
+    if (q.folderId) p.set('folderId', q.folderId);
+    if (q.unread) p.set('unread', '1');
+    if (q.before) p.set('before', q.before);
+    return authed<{ messages: MessageSummary[]; nextCursor: string | null }>('GET', `/v1/messages?${p}`);
+  },
+  message: (id: string, remoteImages = false) => authed<{ message: MessageDetail }>('GET', `/v1/messages/${id}${remoteImages ? '?remoteImages=1' : ''}`),
+  messageAction: (id: string, action: MessageAction, extra: { folderId?: string; confirm?: boolean; clientOpId?: string } = {}) =>
+    authed<{ message: MessageSummary | null; appliedOnServer: boolean; note: string | null }>('POST', `/v1/messages/${id}/actions`, { action, ...extra }),
+  attachmentUrl: (messageId: string, attachmentId: string) => `${API_URL}/v1/messages/${messageId}/attachments/${attachmentId}`,
   disconnectMailbox: (id: string, mode: 'keep' | 'delete', confirmEmail: string) =>
     authed<{ ok: true }>('POST', `/v1/mailboxes/${id}/disconnect`, { mode, confirmEmail }),
 };

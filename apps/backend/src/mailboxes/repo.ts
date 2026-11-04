@@ -31,6 +31,9 @@ export interface MailboxRow {
   last_full_sync_at: Date | null;
   created_at: Date;
   disconnected_at: Date | null;
+  sync_window_days: number;
+  next_sync_at: Date | null;
+  initial_sync_done: boolean;
   imap_host: string;
   imap_port: number;
   imap_security: 'tls' | 'starttls';
