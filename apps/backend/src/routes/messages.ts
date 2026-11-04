@@ -8,6 +8,7 @@ import { processOperations, type OperationPayload } from '../sync/operations.js'
 import { blockRemoteImages, type StructureNode } from '../sync/parse.js';
 import { storeBody } from '../sync/store.js';
 import { withImap } from '../sync/live.js';
+import { attachmentBytes } from '../sync/attachments.js';
 import type { Deps } from '../app.js';
 
 const idParam = z.object({ id: z.string().uuid() });
@@ -168,7 +169,23 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
       }
     }
     const allowRemote = q.remoteImages === '1';
-    const html = m.body?.html_sanitized ? (allowRemote ? m.body.html_sanitized : blockRemoteImages(m.body.html_sanitized)) : null;
+    let html = m.body?.html_sanitized ? (allowRemote ? m.body.html_sanitized : blockRemoteImages(m.body.html_sanitized)) : null;
+    // Embedded pictures (cid:) such as signature logos: shown inline as data URIs (small images only).
+    if (html && /src="cid:/i.test(html)) {
+      let budget = 5 * 1024 * 1024;
+      for (const a of m.atts.filter((x) => x.content_id && x.mime_type.startsWith('image/') && x.size_bytes <= 2 * 1024 * 1024).slice(0, 10)) {
+        if (!html.includes(`cid:${a.content_id}`)) continue;
+        try {
+          const got = await attachmentBytes(cfg, db.api, uid, a.id, id);
+          if (got.data.length > budget) break;
+          budget -= got.data.length;
+          const safeMime = /^image\/(png|jpeg|gif|webp)$/.test(a.mime_type) ? a.mime_type : 'application/octet-stream';
+          html = html.split(`cid:${a.content_id}`).join(`data:${safeMime};base64,${got.data.toString('base64')}`);
+        } catch {
+          // Leave the placeholder; the rest of the message still shows.
+        }
+      }
+    }
     const addr = (kind: string) => m!.addrs.filter((a) => a.kind === kind).map((a) => ({ address: a.address, name: a.name }));
     return {
       message: {
@@ -289,34 +306,13 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
 
   app.get('/v1/messages/:id/attachments/:attachmentId', active, async (req, reply) => {
     const { id, attachmentId } = parse(z.object({ id: z.string().uuid(), attachmentId: z.string().uuid() }), req.params);
-    const uid = uidOf(req);
-    const info = await withUser(db.api, uid, async (c) => {
-      const { rows } = await c.query<{ part_id: string; filename: string; mime_type: string; mailbox_id: string; path: string; uid: string }>(
-        `SELECT a.part_id, a.filename, a.mime_type, m.mailbox_id, f.path, l.uid
-           FROM attachments a JOIN messages m ON m.id = a.message_id
-           JOIN message_locations l ON l.message_id = m.id JOIN folders f ON f.id = l.folder_id
-          WHERE a.id = $1 AND a.message_id = $2 LIMIT 1`, [attachmentId, id]);
-      return rows[0] ?? null;
-    });
-    if (!info) throw new AppError(404, 'not_found', 'Attachment not found, or the message is no longer on the server.');
-    const data = await withImap(cfg, db.api, uid, info.mailbox_id, async (client) => {
-      const lock = await client.getMailboxLock(info.path, { readOnly: true });
-      try {
-        const d = await client.download(info.uid, info.part_id, { uid: true });
-        if (!('content' in d) || !d.content) throw new AppError(404, 'not_found', 'Attachment not found on the server.');
-        const chunks: Buffer[] = [];
-        for await (const ch of d.content as AsyncIterable<Buffer>) chunks.push(ch);
-        return Buffer.concat(chunks);
-      } finally {
-        lock.release();
-      }
-    });
-    const safeName = info.filename.replace(/[\r\n"\\]/g, '_');
+    const got = await attachmentBytes(cfg, db.api, uidOf(req), attachmentId, id);
+    const safeName = got.filename.replace(/[\r\n"\\]/g, '_');
     return reply
       .header('content-type', 'application/octet-stream')
-      .header('content-disposition', `attachment; filename="${safeName.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(info.filename)}`)
-      .header('x-declared-content-type', info.mime_type)
+      .header('content-disposition', `attachment; filename="${safeName.replace(/[^\x20-\x7e]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(got.filename)}`)
+      .header('x-declared-content-type', got.mimeType)
       .header('cache-control', 'private, no-store')
-      .send(data);
+      .send(got.data);
   });
 }

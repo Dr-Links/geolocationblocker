@@ -35,3 +35,20 @@ export function decryptSecret(key: Buffer, blob: Buffer, aad: string): string {
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(ct), decipher.final()]).toString('utf8');
 }
+
+/** AES-256-GCM for binary content. Same layout as encryptSecret. */
+export function encryptBytes(key: Buffer, data: Buffer, aad: string): Buffer {
+  const iv = randomBytes(12);
+  const cipher = createCipheriv('aes-256-gcm', key, iv);
+  cipher.setAAD(Buffer.from(aad));
+  const ct = Buffer.concat([cipher.update(data), cipher.final()]);
+  return Buffer.concat([Buffer.from([VERSION]), iv, cipher.getAuthTag(), ct]);
+}
+
+export function decryptBytes(key: Buffer, blob: Buffer, aad: string): Buffer {
+  if (blob[0] !== VERSION) throw new Error('unsupported ciphertext version');
+  const decipher = createDecipheriv('aes-256-gcm', key, blob.subarray(1, 13));
+  decipher.setAAD(Buffer.from(aad));
+  decipher.setAuthTag(blob.subarray(13, 29));
+  return Buffer.concat([decipher.update(blob.subarray(29)), decipher.final()]);
+}

@@ -29,9 +29,9 @@ export function Title({ children }: { children: ReactNode }) {
   return <Text accessibilityRole="header" style={[styles.title, { color: t.text }]}>{children}</Text>;
 }
 
-export function Body({ children, muted, style }: { children: ReactNode; muted?: boolean; style?: object }) {
+export function Body({ children, muted, style, numberOfLines }: { children: ReactNode; muted?: boolean; style?: object; numberOfLines?: number }) {
   const t = useTheme();
-  return <Text style={[styles.body, { color: muted ? t.muted : t.text }, style]}>{children}</Text>;
+  return <Text numberOfLines={numberOfLines} style={[styles.body, { color: muted ? t.muted : t.text }, style]}>{children}</Text>;
 }
 
 export function Card({ children }: { children: ReactNode }) {

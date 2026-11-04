@@ -3,7 +3,11 @@ import { z } from 'zod';
 import { audit } from '../lib/audit.js';
 import { withUser, type Tx } from '../lib/db.js';
 import { AppError, parse } from '../lib/errors.js';
-import { buildMime, newMessageId, parseRecipients, replySubject, withQuote, type Recipient } from '../send/mime.js';
+import { buildMime, extractInlineImages, newMessageId, parseRecipients, replySubject, withQuote, withSignature, type Recipient } from '../send/mime.js';
+import { readBlob } from '../storage/blobs.js';
+import { attachmentBytes } from '../sync/attachments.js';
+import { isValidTimeZone } from '@app/shared';
+import { draftDto } from './compose.js';
 import { sendClaimed } from '../send/sender.js';
 import type { Deps } from '../app.js';
 
@@ -122,7 +126,22 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
       idempotencyKey: z.string().uuid(),
       confirmVisibleRecipients: z.boolean().optional(),
       allowDifferentSender: z.boolean().optional(),
+      uploadIds: z.array(z.string().uuid()).max(50).default([]),
+      // undefined = the mailbox's default signature; null = none.
+      signatureId: z.string().uuid().nullable().optional(),
+      includeOriginalAttachments: z.boolean().default(true),
+      sendAt: z.string().max(40).optional(),
+      timeZone: z.string().max(64).optional(),
+      draftId: z.string().uuid().optional(),
     }), req.body);
+    let scheduledAt: Date | null = null;
+    if (body.sendAt) {
+      scheduledAt = new Date(body.sendAt);
+      if (Number.isNaN(scheduledAt.getTime())) throw new AppError(400, 'validation_failed', 'Invalid send time.');
+      if (scheduledAt.getTime() < Date.now() + 60_000) throw new AppError(400, 'validation_failed', 'Choose a send time at least one minute from now.');
+      if (scheduledAt.getTime() > Date.now() + 366 * 86_400_000) throw new AppError(400, 'validation_failed', 'Messages can be scheduled up to one year ahead.');
+      if (body.timeZone && !isValidTimeZone(body.timeZone)) throw new AppError(400, 'validation_failed', 'Unknown time zone.');
+    }
     const uid = uidOf(req);
 
     const result = await withUser(db.api, uid, async (c) => {
@@ -130,8 +149,8 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
       if (existing.rows[0]) return { id: existing.rows[0].id, created: false };
 
       const { rows: mbx } = await c.query<{ id: string; email_address: string; display_name: string | null; status: string;
-                                            max_recipients_per_msg: number | null; max_message_bytes: number | null }>(
-        `SELECT id, email_address, display_name, status, max_recipients_per_msg, max_message_bytes FROM mailboxes WHERE id = $1`, [body.mailboxId]);
+                                            max_recipients_per_msg: number | null; max_message_bytes: number | null; default_signature_id: string | null }>(
+        `SELECT id, email_address, display_name, status, max_recipients_per_msg, max_message_bytes, default_signature_id FROM mailboxes WHERE id = $1`, [body.mailboxId]);
       const m = mbx[0];
       if (!m) throw new AppError(404, 'not_found', 'Sending mailbox not found.');
       if (m.status === 'disconnected') throw new AppError(409, 'conflict', 'This mailbox is disconnected. Reconnect it to send.');
@@ -158,6 +177,26 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
 
       let text = body.text;
       let html = body.html ?? null;
+      // Images placed inside the text become inline attachments.
+      let inlineIds: string[] = [];
+      if (html) ({ html, uploadIds: inlineIds } = extractInlineImages(html));
+      const sigId = body.signatureId === undefined ? m.default_signature_id : body.signatureId;
+      if (sigId) {
+        const sig = await c.query<{ text_body: string; html_body: string | null }>(`SELECT text_body, html_body FROM signatures WHERE id = $1`, [sigId]);
+        if (!sig.rows[0]) throw new AppError(404, 'not_found', 'Signature not found.');
+        ({ text, html } = withSignature(text, html, sig.rows[0]));
+      }
+      const attachments: Array<{ filename: string; content: Buffer; contentType: string; cid?: string }> = [];
+      const allUploads = [...new Set([...body.uploadIds, ...inlineIds])];
+      if (allUploads.length) {
+        const { rows: ups } = await c.query<{ id: string; blob_id: string; filename: string; detected_mime: string }>(
+          `SELECT id, blob_id, filename, detected_mime FROM uploads WHERE id = ANY($1)`, [allUploads]);
+        if (ups.length !== allUploads.length) throw new AppError(404, 'not_found', 'One of the attachments was not found. Upload it again.');
+        for (const u of ups) {
+          attachments.push({ filename: u.filename, content: await readBlob(c, cfg, uid, u.blob_id), contentType: u.detected_mime,
+            ...(inlineIds.includes(u.id) ? { cid: `${u.id}@inline` } : {}) });
+        }
+      }
       let inReplyTo: string | null = null;
       let references: string[] = [];
       if (body.mode !== 'new') {
@@ -172,6 +211,19 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
         if (body.mode !== 'forward' && src.message_id_header) {
           inReplyTo = src.message_id_header;
           references = [...src.references_ids, src.message_id_header].slice(-20);
+        }
+        if (body.mode === 'forward' && body.includeOriginalAttachments) {
+          const { rows: atts } = await c.query<{ id: string; filename: string; mime_type: string; content_id: string | null; is_inline: boolean }>(
+            `SELECT id, filename, mime_type, content_id, is_inline FROM attachments WHERE message_id = $1 ORDER BY part_id`, [src.id]);
+          for (const a of atts) {
+            try {
+              const got = await attachmentBytes(cfg, db.api, uid, a.id, src.id);
+              attachments.push({ filename: a.filename, content: got.data, contentType: a.mime_type, ...(a.is_inline && a.content_id ? { cid: a.content_id } : {}) });
+            } catch (err) {
+              throw new AppError(409, 'conflict', `The original attachment "${a.filename}" could not be loaded (${(err as Error).message}). Try again, or forward without attachments.`,
+                { requires: 'includeOriginalAttachments=false' });
+            }
+          }
         }
         if (body.includeQuote) {
           const q = withQuote(body.mode, text, html, {
@@ -190,7 +242,7 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
       const messageId = newMessageId(m.email_address);
       const mime = await buildMime({
         from: { address: m.email_address, name: m.display_name }, to: finalTo, cc: finalCc, bcc: finalBcc,
-        subject: body.subject, text, html, messageId, inReplyTo, references,
+        subject: body.subject, text, html, messageId, inReplyTo, references, attachments,
       });
       const maxBytes = m.max_message_bytes ?? DEFAULT_MAX_MESSAGE_BYTES;
       if (mime.length > maxBytes) {
@@ -198,12 +250,18 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
       }
       const { rows: s } = await c.query<{ undo_send_seconds: number }>(`SELECT undo_send_seconds FROM platform_settings`);
       const undo = s[0]?.undo_send_seconds ?? 10;
+      const composeJson = {
+        mode: body.mode, sourceMessageId: body.sourceMessageId ?? null, to: body.to, cc: body.cc, bcc: body.bcc, subject: body.subject,
+        text: body.text, html: body.html ?? null, signatureId: body.signatureId ?? null, uploadIds: body.uploadIds,
+      };
       const { rows } = await c.query<{ id: string }>(
         `INSERT INTO outbound_messages (user_id, mailbox_id, idempotency_key, message_id_header, compose_kind, source_message_id, subject,
-                recipient_count, status, release_at, mime_bytes)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,'pending_undo', now() + make_interval(secs => $9), $10)
+                recipient_count, status, release_at, scheduled_at, scheduled_tz, mime_bytes, compose_json)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8, CASE WHEN $11::timestamptz IS NULL THEN 'pending_undo' ELSE 'scheduled' END,
+                 CASE WHEN $11::timestamptz IS NULL THEN now() + make_interval(secs => $9) END, $11, $12, $10, $13)
          ON CONFLICT (user_id, idempotency_key) DO NOTHING RETURNING id`,
-        [uid, m.id, body.idempotencyKey, messageId, body.mode, body.sourceMessageId ?? null, body.subject, total, undo, mime.length]);
+        [uid, m.id, body.idempotencyKey, messageId, body.mode, body.sourceMessageId ?? null, body.subject, total, undo, mime.length,
+         scheduledAt, scheduledAt ? body.timeZone ?? null : null, JSON.stringify(composeJson)]);
       if (!rows[0]) {
         const again = await c.query<{ id: string }>(`SELECT id FROM outbound_messages WHERE idempotency_key = $1`, [body.idempotencyKey]);
         return { id: again.rows[0]!.id, created: false };
@@ -216,12 +274,13 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
             [id, uid, kind, i, r.address, r.name ?? null]);
         }
       }
-      await audit(c, { actorType: 'user', actorUserId: uid, action: 'outbound.queued', targetType: 'outbound', targetId: id, targetUserId: uid, ip: req.ip,
-        details: { mailbox_id: m.id, recipients: total, kind: body.mode } });
-      return { id, created: true, undo };
+      if (body.draftId) await c.query(`DELETE FROM drafts WHERE id = $1`, [body.draftId]);
+      await audit(c, { actorType: 'user', actorUserId: uid, action: scheduledAt ? 'outbound.scheduled' : 'outbound.queued', targetType: 'outbound', targetId: id,
+        targetUserId: uid, ip: req.ip, details: { mailbox_id: m.id, recipients: total, kind: body.mode, attachments: attachments.length } });
+      return { id, created: true, undo, scheduled: !!scheduledAt };
     });
 
-    if (result.created && deps.inProcessSend !== false) scheduleInProcessSend(deps, uid, result.id, (result.undo ?? 10) * 1000 + 300, app.log.warn.bind(app.log));
+    if (result.created && !result.scheduled && deps.inProcessSend !== false) scheduleInProcessSend(deps, uid, result.id, (result.undo ?? 10) * 1000 + 300, app.log.warn.bind(app.log));
     const o = await withUser(db.api, uid, (c) => loadOutbound(c, result.id));
     return reply.code(result.created ? 201 : 200).send({ outbound: outboundDto(o!) });
   });
@@ -272,6 +331,33 @@ export function registerOutboundRoutes(app: FastifyInstance, deps: Deps) {
       if (!o) throw new AppError(404, 'not_found', 'Message not found.');
       if (!r.rowCount) throw new AppError(409, 'conflict', `This message is ${o.status} and cannot be discarded.`);
       return { outbound: outboundDto(o) };
+    });
+  });
+
+  /** Turns a scheduled (or paused/failed) message back into an editable draft and cancels the send. */
+  app.post('/v1/outbound/:id/edit', active, async (req) => {
+    const { id } = parse(idParam, req.params);
+    const uid = uidOf(req);
+    return withUser(db.api, uid, async (c) => {
+      const { rows } = await c.query<{ mailbox_id: string; compose_json: Record<string, unknown> | null; status: string }>(
+        `UPDATE outbound_messages SET status = 'cancelled', lease_until = NULL
+          WHERE id = $1 AND status IN ('scheduled','paused_suspended','failed') RETURNING mailbox_id, compose_json, status`, [id]);
+      const o = rows[0];
+      if (!o) {
+        const cur = await loadOutbound(c, id);
+        if (!cur) throw new AppError(404, 'not_found', 'Message not found.');
+        throw new AppError(409, 'conflict', `Too late to edit: the message is ${cur.status}.`);
+      }
+      const j = (o.compose_json ?? {}) as { mode?: string; sourceMessageId?: string | null; to?: unknown[]; cc?: unknown[]; bcc?: unknown[];
+        subject?: string; text?: string; html?: string | null; signatureId?: string | null; uploadIds?: string[] };
+      const flat = (l: unknown[] | undefined) => (l ?? []).map((x) => (typeof x === 'string' ? x : (x as { address: string }).address));
+      const { rows: d } = await c.query(
+        `INSERT INTO drafts (user_id, mailbox_id, compose_kind, source_message_id, to_recipients, cc_recipients, bcc_recipients, subject, text_body,
+                html_body, signature_id, upload_ids)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12) RETURNING *`,
+        [uid, o.mailbox_id, j.mode ?? 'new', j.sourceMessageId ?? null, JSON.stringify(flat(j.to)), JSON.stringify(flat(j.cc)), JSON.stringify(flat(j.bcc)),
+         j.subject ?? '', j.text ?? '', j.html ?? null, j.signatureId ?? null, j.uploadIds ?? []]);
+      return { draft: draftDto(d[0] as Parameters<typeof draftDto>[0]) };
     });
   });
 

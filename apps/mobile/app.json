@@ -27,7 +27,8 @@
       "expo-router",
       "expo-secure-store",
       "expo-localization",
-      "expo-sharing"
+      "expo-sharing",
+      "@react-native-community/datetimepicker"
     ],
     "scheme": "emailplatform",
     "extra": {

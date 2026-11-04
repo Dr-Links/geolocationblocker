@@ -43,6 +43,7 @@ const schema = z.object({
   HTTP_RATE_LIMIT: bool,
   MAIL_ALLOW_PRIVATE_HOSTS: bool,
   MAIL_EXTRA_CA_FILE: z.string().optional(),
+  BLOB_DIR: z.string().optional(),
   MAIL_CONNECT_TIMEOUT_MS: z.coerce.number().int().min(1000).max(120000).default(20000),
 });
 
@@ -61,6 +62,8 @@ export interface Config {
   minAppVersion: string;
   /** Per-IP request limits (in memory, per process). Login throttling in the database is always on. */
   httpRateLimit: boolean;
+  /** Where encrypted file copies (attachments, uploads) are stored. */
+  blobDir: string;
   mail: {
     /** Development/test only: allow mail servers on private/loopback addresses. */
     allowPrivateHosts: boolean;
@@ -101,6 +104,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     cookieSecure: e.COOKIE_SECURE ?? e.NODE_ENV === 'production',
     minAppVersion: e.MIN_APP_VERSION,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
+    blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
     mail: {
       allowPrivateHosts: e.NODE_ENV !== 'production' && (e.MAIL_ALLOW_PRIVATE_HOSTS ?? false),
       extraCaPem: e.MAIL_EXTRA_CA_FILE ? readFileSync(e.MAIL_EXTRA_CA_FILE, 'utf8') : undefined,

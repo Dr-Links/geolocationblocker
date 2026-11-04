@@ -23,6 +23,9 @@ export default function AppLayout() {
       <Stack.Screen name="thread/[id]" options={{ title: 'Conversation' }} />
       <Stack.Screen name="search" options={{ title: 'Search' }} />
       <Stack.Screen name="outbox" options={{ title: 'Outbox' }} />
+      <Stack.Screen name="drafts" options={{ title: 'Drafts' }} />
+      <Stack.Screen name="signatures" options={{ title: 'Signatures' }} />
+      <Stack.Screen name="templates" options={{ title: 'Templates' }} />
     </Stack>
   );
 }

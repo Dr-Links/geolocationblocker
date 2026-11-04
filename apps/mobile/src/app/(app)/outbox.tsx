@@ -1,5 +1,5 @@
 import { OUTBOUND_STATUS_TEXT, type OutboundDto } from '@app/shared';
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useCallback, useState } from 'react';
 import { Alert, View } from 'react-native';
 import { Body, Button, Card, Message, Screen, Title, useTheme } from '../../components/ui';
@@ -36,6 +36,13 @@ export default function Outbox() {
             <Body style={{ color: problem ? t.danger : t.text, marginTop: 4 }}>{OUTBOUND_STATUS_TEXT[o.status]}</Body>
             {o.lastErrorMessage ? <Body muted style={{ fontSize: 13 }}>{o.lastErrorMessage}</Body> : null}
             {o.status === 'queued' && o.nextAttemptAt ? <Body muted style={{ fontSize: 13 }}>Next try: {formatDateTime(o.nextAttemptAt)}</Body> : null}
+            {o.status === 'scheduled' && o.scheduledAt ? <Body muted style={{ fontSize: 13 }}>Will be sent {formatDateTime(o.scheduledAt)}</Body> : null}
+            {o.status === 'scheduled' ? (
+              <View>
+                <Button title="Edit" variant="secondary" onPress={() => api.editOutbound(o.id).then((r) => router.push({ pathname: '/compose', params: { draftId: r.draft.id } }), (e: Error) => setError(e.message))} />
+                <Button title="Cancel sending" variant="link" onPress={() => api.discardSend(o.id).then(load, (e: Error) => setError(e.message))} />
+              </View>
+            ) : null}
             {problem ? (
               <View>
                 <Button title={o.status === 'paused_suspended' ? 'Send now' : 'Try again'} variant="secondary" onPress={() => retry(o)} />

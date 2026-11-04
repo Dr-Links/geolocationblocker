@@ -48,6 +48,7 @@ export interface ComposeInput {
   inReplyTo?: string | null;
   references?: string[];
   date?: Date;
+  attachments?: Array<{ filename: string; content: Buffer; contentType: string; cid?: string }>;
 }
 
 /**
@@ -68,6 +69,7 @@ export async function buildMime(m: ComposeInput): Promise<Buffer> {
     references: m.references?.length ? m.references.map((r) => `<${r}>`).join(' ') : undefined,
     date: m.date ?? new Date(),
     headers: { 'X-Mailer': 'Email Platform' },
+    attachments: m.attachments?.map((a) => ({ filename: a.filename, content: a.content, contentType: a.contentType, ...(a.cid ? { cid: a.cid, contentDisposition: 'inline' as const } : {}) })),
   });
   return composer.compile().build();
 }
@@ -110,4 +112,26 @@ export function withQuote(kind: 'reply' | 'reply_all' | 'forward', text: string,
       ? `${html ?? escapeHtml(text).replace(/\n/g, '<br>')}<br><br><div>${escapeHtml(intro)}</div><blockquote style="margin:0 0 0 .8ex;border-left:1px solid #ccc;padding-left:1ex">${src.html ?? escapeHtml(original).replace(/\n/g, '<br>')}</blockquote>`
       : null,
   };
+}
+
+/** Adds the signature once, before any quoted text. */
+export function withSignature(text: string, html: string | null | undefined, sig: { text_body: string; html_body: string | null } | null) {
+  if (!sig) return { text, html: html ?? null };
+  const sigText = sig.text_body.trim();
+  return {
+    text: sigText ? `${text}\n\n-- \n${sigText}` : text,
+    html: html != null
+      ? `${html}<br><br><div class="signature">-- <br>${sig.html_body ?? escapeHtml(sigText).replace(/\n/g, '<br>')}</div>`
+      : null,
+  };
+}
+
+/** Images placed in the editor carry data-upload-id; they become cid: references to inline attachments. */
+export function extractInlineImages(html: string): { html: string; uploadIds: string[] } {
+  const ids: string[] = [];
+  const out = html.replace(/<img\b[^>]*\bdata-upload-id="([0-9a-f-]{36})"[^>]*>/gi, (_m, id: string) => {
+    ids.push(id);
+    return `<img src="cid:${id}@inline" alt="">`;
+  });
+  return { html: out, uploadIds: [...new Set(ids)] };
 }

@@ -363,3 +363,16 @@ export interface SavedSearch {
   query: SearchFilters;
   createdAt: string;
 }
+
+// ---------------------------------------------------------------------------
+// Composer: uploads, signatures, templates, drafts
+// ---------------------------------------------------------------------------
+
+export interface UploadDto { id: string; filename: string; mimeType: string; sizeBytes: number; risk: 'low' | 'elevated' | 'dangerous' }
+export interface SignatureDto { id: string; name: string; text: string; html: string | null; defaultFor: string[] }
+export interface TemplateDto { id: string; kind: 'template' | 'quick_reply'; name: string; subject: string | null; text: string; html: string | null }
+export interface DraftDto {
+  id: string; mailboxId: string; mode: 'new' | 'reply' | 'reply_all' | 'forward'; sourceMessageId: string | null;
+  to: string[]; cc: string[]; bcc: string[]; subject: string; text: string; html: string | null; signatureId: string | null;
+  uploadIds: string[]; version: number; updatedByDevice: string | null; updatedAt: string; createdAt: string;
+}

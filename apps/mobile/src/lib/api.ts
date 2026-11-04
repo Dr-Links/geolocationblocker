@@ -1,5 +1,6 @@
-import type { Account, ApiErrorBody, ComposeSuggestion, SavedSearch, SearchFilters, ThreadSummary, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
+import type { Account, ApiErrorBody, ComposeSuggestion, DraftDto, SignatureDto, TemplateDto, UploadDto, SavedSearch, SearchFilters, ThreadSummary, FolderDto, OutboundDto, LoginResponse, MailboxDto, MessageAction, MessageDetail, MessageSummary, ServerSettingsDto, SessionInfo } from '@app/shared';
 import * as Device from 'expo-device';
+import { File } from 'expo-file-system';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { API_URL, APP_VERSION } from './config';
@@ -176,8 +177,32 @@ export const api = {
     authed<ComposeSuggestion>('GET', `/v1/messages/${messageId}/compose?mode=${mode}`),
   send: (input: {
     mailboxId: string; mode: 'new' | 'reply' | 'reply_all' | 'forward'; sourceMessageId?: string; to: string[]; cc: string[]; bcc: string[];
-    subject: string; text: string; idempotencyKey: string; confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean;
+    subject: string; text: string; html?: string | null; idempotencyKey: string; confirmVisibleRecipients?: boolean; allowDifferentSender?: boolean;
+    uploadIds?: string[]; signatureId?: string | null; includeOriginalAttachments?: boolean; sendAt?: string; timeZone?: string; draftId?: string;
   }) => authed<{ outbound: OutboundDto }>('POST', '/v1/outbound', input),
+  editOutbound: (id: string) => authed<{ draft: DraftDto }>('POST', `/v1/outbound/${id}/edit`, {}),
+  /** Uploads a local file (content:// or file:// URI) as raw bytes; the server detects its real type. */
+  async uploadFile(uri: string, filename: string, inline = false): Promise<UploadDto> {
+    const url = `${API_URL}/v1/uploads?filename=${encodeURIComponent(filename)}${inline ? '&inline=1' : ''}`;
+    const res = await new File(uri).upload(url, { httpMethod: 'PUT', headers: { ...(await authHeaders()), 'content-type': 'application/octet-stream' } });
+    const body = JSON.parse(res.body || '{}');
+    if (res.status !== 201) throw new ApiError(res.status, body.error?.code ?? 'error', body.error?.message ?? `Upload failed (${res.status})`);
+    return body.upload as UploadDto;
+  },
+  signatures: () => authed<{ signatures: SignatureDto[] }>('GET', '/v1/signatures'),
+  saveSignature: (s: { id?: string; name: string; text: string; html?: string | null }) =>
+    s.id ? authed('PUT', `/v1/signatures/${s.id}`, s) : authed<{ id: string }>('POST', '/v1/signatures', s),
+  deleteSignature: (id: string) => authed<void>('DELETE', `/v1/signatures/${id}`),
+  setDefaultSignature: (mailboxId: string, signatureId: string | null) => authed('PUT', `/v1/mailboxes/${mailboxId}/default-signature`, { signatureId }),
+  templates: () => authed<{ templates: TemplateDto[] }>('GET', '/v1/templates'),
+  saveTemplate: (t: { id?: string; kind: 'template' | 'quick_reply'; name: string; subject?: string | null; text: string; html?: string | null }) =>
+    t.id ? authed('PUT', `/v1/templates/${t.id}`, t) : authed<{ id: string }>('POST', '/v1/templates', t),
+  deleteTemplate: (id: string) => authed<void>('DELETE', `/v1/templates/${id}`),
+  drafts: () => authed<{ drafts: DraftDto[] }>('GET', '/v1/drafts'),
+  draft: (id: string) => authed<{ draft: DraftDto }>('GET', `/v1/drafts/${id}`),
+  createDraft: (d: Partial<DraftDto> & { mailboxId: string; device?: string }) => authed<{ draft: DraftDto }>('POST', '/v1/drafts', d),
+  updateDraft: (id: string, d: Partial<DraftDto> & { mailboxId: string; version: number; device?: string }) => authed<{ draft: DraftDto }>('PUT', `/v1/drafts/${id}`, d),
+  deleteDraft: (id: string) => authed<void>('DELETE', `/v1/drafts/${id}`),
   undoSend: (id: string) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/undo`, {}),
   retrySend: (id: string, confirmPossibleDuplicate = false) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/retry`, { confirmPossibleDuplicate }),
   discardSend: (id: string) => authed<{ outbound: OutboundDto }>('POST', `/v1/outbound/${id}/discard`, {}),
