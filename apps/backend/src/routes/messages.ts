@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { withUser, type Tx } from '../lib/db.js';
 import { AppError, parse } from '../lib/errors.js';
 import { fetchBody } from '../sync/engine.js';
+import { canStore } from '../storage/quota.js';
 import { processOperations, type OperationPayload } from '../sync/operations.js';
 import { blockRemoteImages, type StructureNode } from '../sync/parse.js';
 import { storeBody } from '../sync/store.js';
@@ -146,6 +147,7 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
 
     // Body not stored yet (large message, or evicted by retention): fetch it from the server now.
     let bodyError: string | null = null;
+    let transientBody: { text_body: string | null; html_sanitized: string | null; has_remote_content: boolean } | null = null;
     if (!m.body && m.base.onServer) {
       try {
         await withImap(cfg, db.api, uid, m.detail.mailbox_id, async (client) => {
@@ -158,12 +160,21 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
             const meta = await client.fetchOne(l.uid, { bodyStructure: true, size: true }, { uid: true });
             if (!meta) return;
             const body = await fetchBody(client, Number(l.uid), meta.size ?? null, meta.bodyStructure as StructureNode | undefined);
-            if (body) await withUser(db.api, uid, (c) => storeBody(c, uid, id, body));
+            if (body) {
+              const stored = await withUser(db.api, uid, async (c) => {
+                if (!(await canStore(c))) return false;
+                await storeBody(c, uid, id, body);
+                return true;
+              });
+              // Storage full: show it now without keeping a copy.
+              if (!stored) transientBody = { text_body: body.text, html_sanitized: body.html, has_remote_content: body.hasRemoteContent };
+            }
           } finally {
             lock.release();
           }
         });
         m = (await load())!;
+        if (!m.body && transientBody) m.body = transientBody;
       } catch (err) {
         bodyError = err instanceof AppError ? err.message : 'The message body could not be loaded from the server.';
       }

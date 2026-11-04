@@ -46,6 +46,7 @@ export default function AppLayout() {
       <Stack.Screen name="signatures" options={{ title: 'Signatures' }} />
       <Stack.Screen name="templates" options={{ title: 'Templates' }} />
       <Stack.Screen name="notifications" options={{ title: 'Notifications' }} />
+      <Stack.Screen name="storage" options={{ title: 'Storage' }} />
     </Stack>
     </View>
   );

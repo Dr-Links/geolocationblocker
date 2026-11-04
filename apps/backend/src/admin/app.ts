@@ -274,6 +274,8 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
         WHERE m.status IN ('auth_failed','error') ORDER BY m.last_error_at DESC NULLS LAST LIMIT 50`);
     const { rows: sendFails } = await db.query<{ n: number }>(
       `SELECT count(*)::int AS n FROM outbound_messages WHERE status IN ('failed','uncertain') AND created_at > now() - interval '24 hours'`);
+    const { rows: st } = await db.query<{ o_user_id: string; o_used: string; o_quota: string; o_state: string; email_display: string }>(
+      `SELECT o.*, u.email_display FROM app.storage_overview() o JOIN users u ON u.id = o.o_user_id ORDER BY o.o_used::numeric / greatest(o.o_quota, 1) DESC`);
     const sum = (pred: (r: { status: string; verified: boolean }) => boolean) => counts.filter(pred).reduce((a, r) => a + r.n, 0);
     return {
       counts: {
@@ -287,6 +289,12 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       failedLogins24h: fails[0]?.n ?? 0,
       mailboxes: Object.fromEntries(mbx.map((r) => [r.status, r.n])),
       sendFailures24h: sendFails[0]?.n ?? 0,
+      storage: {
+        totalUsedBytes: st.reduce((a, r) => a + Number(r.o_used), 0),
+        warning: st.filter((r) => r.o_state === 'warning').length,
+        full: st.filter((r) => r.o_state === 'full').length,
+        top: st.slice(0, 10).map((r) => ({ id: r.o_user_id, email: r.email_display, usedBytes: Number(r.o_used), quotaBytes: Number(r.o_quota), state: r.o_state })),
+      },
       mailboxProblems: problems.map((p) => ({ id: p.id, userId: p.user_id, owner: p.owner, email: p.email_address, status: p.status, statusDetail: p.status_detail, lastErrorAt: iso(p.last_error_at) })),
     };
   });
@@ -317,7 +325,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       `SELECT * FROM users WHERE id = $1 AND role = 'user'`, [id]);
     const u = rows[0];
     if (!u) throw new AppError(404, 'not_found', 'User not found.');
-    const [periods, sessions, events, settings, mailboxes] = await Promise.all([
+    const [periods, sessions, events, settings, mailboxes, usage] = await Promise.all([
       db.query<{ kind: string; starts_at: Date; ends_at: Date; timezone_used: string; payment_note: string | null; created_at: Date }>(
         `SELECT kind, starts_at, ends_at, timezone_used, payment_note, created_at FROM access_periods WHERE user_id = $1 ORDER BY created_at DESC`, [id]),
       db.query<{ id: string; kind: string; created_at: Date; last_used_at: Date; ip: string | null; name: string | null; platform: string | null }>(
@@ -331,6 +339,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
                  last_error_at: Date | null; next_retry_at: Date | null; last_verified_at: Date | null; last_incoming_at: Date | null; created_at: Date }>(
         `SELECT id, email_address, provider, status, status_detail, last_error_code, last_error_at, next_retry_at, last_verified_at,
                 last_incoming_at, created_at FROM mailboxes WHERE user_id = $1 ORDER BY created_at`, [id]),
+      db.query<{ used_bytes: string; quota_bytes: string; message_count: string; state: string }>(`SELECT * FROM app.storage_status($1)`, [id]),
     ]);
     return {
       user: {
@@ -341,6 +350,9 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
         rejectedAt: iso(u.rejected_at),
         storageQuotaBytes: u.storage_quota_bytes,
         effectiveQuotaBytes: u.storage_quota_bytes ?? settings.rows[0]?.default_quota_bytes ?? null,
+        storageUsedBytes: Number(usage.rows[0]?.used_bytes ?? 0),
+        storageState: usage.rows[0]?.state ?? 'ok',
+        storedMessages: Number(usage.rows[0]?.message_count ?? 0),
       },
       accessPeriods: periods.rows.map((p) => ({ kind: p.kind, startsAt: iso(p.starts_at), endsAt: iso(p.ends_at), timezone: p.timezone_used, paymentNote: p.payment_note, createdAt: iso(p.created_at) })),
       sessions: sessions.rows.map((s) => ({ id: s.id, kind: s.kind, createdAt: iso(s.created_at), lastUsedAt: iso(s.last_used_at), ip: s.ip, deviceName: s.name, platform: s.platform })),

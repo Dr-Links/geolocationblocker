@@ -69,6 +69,8 @@ export interface IncomingMessage {
   authResults: Record<string, string | undefined> | null;
   attachments: AttachmentMeta[];
   body: { text: string | null; html: string | null; hasRemoteContent: boolean; snippet: string | null } | null;
+  /** Set when the text was not fetched because the user's storage is full. */
+  skippedForQuota?: boolean;
 }
 
 /**
@@ -148,7 +150,7 @@ export async function storeMessage(c: Tx, userId: string, mailboxId: string, fol
       [userId, mailboxId, threadId, m.providerKey, m.messageIdHeader, m.inReplyTo, m.references, m.subject?.slice(0, 1000) ?? null,
        m.from?.address ?? null, m.from?.name ?? null, toSummary, m.sentAt, m.receivedAt, m.sizeBytes, m.body?.snippet ?? null,
        m.priority, m.flags.is_seen, m.flags.is_flagged, m.flags.is_answered, m.flags.is_draft, m.flags.is_forwarded,
-       m.flags.keywords, m.attachments.some((a) => !a.isInline), m.body ? 'stored' : 'headers_only', m.authResults,
+       m.flags.keywords, m.attachments.some((a) => !a.isInline), m.body ? 'stored' : m.skippedForQuota ? 'skipped_quota' : 'headers_only', m.authResults,
        m.addresses.map((a) => `${a.name ?? ''} ${a.address}`).join(' '), text, m.attachments.map((a) => a.filename).join(' ')]);
     if (r.rows[0]) {
       id = r.rows[0].id;

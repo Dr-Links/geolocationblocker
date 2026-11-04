@@ -46,7 +46,7 @@ export async function makeCtx(opts: { env?: Record<string, string>; discovery?: 
 
 /** Removes all rows between test files (owner bypasses RLS). */
 export async function resetData(ctx: Ctx) {
-  await ctx.owner.query(`TRUNCATE app.users, app.audit_log, app.login_attempts, app.deletion_requests CASCADE`);
+  await ctx.owner.query(`TRUNCATE app.users, app.audit_log, app.login_attempts, app.deletion_requests, app.blob_tombstones CASCADE`);
   ctx.mailer.sent.length = 0;
 }
 

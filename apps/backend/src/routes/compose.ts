@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { withUser, type Tx } from '../lib/db.js';
 import { AppError, parse } from '../lib/errors.js';
 import { sanitizeEmailHtml } from '../sync/parse.js';
+import { storageStatus } from '../storage/quota.js';
 import { putBlob } from '../storage/blobs.js';
 import { detectType, uploadRisk } from '../storage/sniff.js';
 import type { Deps } from '../app.js';
@@ -67,6 +68,10 @@ export function registerComposeRoutes(app: FastifyInstance, deps: Deps) {
     }
     const uid = uidOf(req);
     const row = await withUser(db.api, uid, async (c) => {
+      const st = await storageStatus(c);
+      if (st.usedBytes + data.length > st.quotaBytes) {
+        throw new AppError(413, 'limit_reached', 'Your storage is full. Delete messages you no longer need, or ask the administrator for more space.');
+      }
       const blob = await putBlob(c, cfg, uid, data);
       const { rows } = await c.query<{ id: string }>(
         `INSERT INTO uploads (user_id, blob_id, filename, declared_mime, detected_mime, size_bytes, risk_level, inline)

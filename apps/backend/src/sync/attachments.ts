@@ -2,6 +2,7 @@ import type { Config } from '../lib/config.js';
 import { withUser, type Db } from '../lib/db.js';
 import { AppError } from '../lib/errors.js';
 import { putBlob, readBlob } from '../storage/blobs.js';
+import { canStore } from '../storage/quota.js';
 import { withImap } from './live.js';
 
 /** Largest attachment kept as a platform copy when first downloaded (bigger ones are always fetched live). */
@@ -41,6 +42,7 @@ export async function attachmentBytes(cfg: Config, db: Db, userId: string, attac
   });
   if (data.length <= CACHE_LIMIT) {
     await withUser(db, userId, async (c) => {
+      if (!(await canStore(c))) return; // storage full: serve it, keep no copy
       const blob = await putBlob(c, cfg, userId, data);
       await c.query(`UPDATE attachments SET blob_id = $2 WHERE id = $1`, [attachmentId, blob.id]);
     });

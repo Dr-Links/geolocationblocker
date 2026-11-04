@@ -5,6 +5,7 @@ import { credentialKey } from '../admin/mfa.js';
 import type { Config } from '../lib/config.js';
 import { decryptBytes, encryptBytes, sha256 } from '../lib/crypto.js';
 import type { Tx } from '../lib/db.js';
+import { S3BlobStore } from './s3.js';
 
 /** Where encrypted blobs live. Local disk today; an S3-compatible store can implement the same interface. */
 export interface BlobStore {
@@ -38,10 +39,14 @@ export class LocalBlobStore implements BlobStore {
   }
 }
 
-let defaultStore: BlobStore | null = null;
+const stores = new WeakMap<Config, BlobStore>();
 export function blobStore(cfg: Config): BlobStore {
-  defaultStore ??= new LocalBlobStore(cfg.blobDir);
-  return defaultStore;
+  let s = stores.get(cfg);
+  if (!s) {
+    s = cfg.blobS3 ? new S3BlobStore(cfg.blobS3) : new LocalBlobStore(cfg.blobDir);
+    stores.set(cfg, s);
+  }
+  return s;
 }
 
 /** The user's data key (created on first use), unwrapped with the key that lives outside the database. */

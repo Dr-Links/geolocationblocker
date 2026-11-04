@@ -2,6 +2,15 @@ import { readFileSync } from 'node:fs';
 import { z } from 'zod';
 
 /** Reads NAME, or the contents of the file at NAME_FILE (for secrets kept outside env). */
+function s3Config(env: NodeJS.ProcessEnv, e: { S3_ENDPOINT?: string; S3_REGION: string; S3_BUCKET?: string; S3_PREFIX?: string; S3_PATH_STYLE?: boolean }) {
+  const accessKeyId = secret(env, 'S3_ACCESS_KEY_ID');
+  const secretAccessKey = secret(env, 'S3_SECRET_ACCESS_KEY');
+  if (!e.S3_ENDPOINT || !e.S3_BUCKET || !accessKeyId || !secretAccessKey) {
+    throw new Error('BLOB_DRIVER=s3 needs S3_ENDPOINT, S3_BUCKET, S3_ACCESS_KEY_ID and S3_SECRET_ACCESS_KEY');
+  }
+  return { endpoint: e.S3_ENDPOINT, region: e.S3_REGION, bucket: e.S3_BUCKET, prefix: e.S3_PREFIX, pathStyle: e.S3_PATH_STYLE ?? true, accessKeyId, secretAccessKey };
+}
+
 function secret(env: NodeJS.ProcessEnv, name: string): string | undefined {
   const direct = env[name];
   if (direct) return direct;
@@ -44,6 +53,12 @@ const schema = z.object({
   MAIL_ALLOW_PRIVATE_HOSTS: bool,
   MAIL_EXTRA_CA_FILE: z.string().optional(),
   BLOB_DIR: z.string().optional(),
+  BLOB_DRIVER: z.enum(['local', 's3']).default('local'),
+  S3_ENDPOINT: z.string().url().optional(),
+  S3_REGION: z.string().default('us-east-1'),
+  S3_BUCKET: z.string().optional(),
+  S3_PREFIX: z.string().optional(),
+  S3_PATH_STYLE: bool,
   PUSH_PROVIDER: z.enum(['expo', 'fcm', 'none']).optional(),
   EXPO_PUSH_URL: z.string().url().default('https://exp.host/--/api/v2/push/send'),
   FCM_API_BASE: z.string().url().default('https://fcm.googleapis.com'),
@@ -68,6 +83,7 @@ export interface Config {
   httpRateLimit: boolean;
   /** Where encrypted file copies (attachments, uploads) are stored. */
   blobDir: string;
+  blobS3: { endpoint: string; region: string; bucket: string; prefix?: string; pathStyle: boolean; accessKeyId: string; secretAccessKey: string } | null;
   push: {
     provider: 'expo' | 'fcm' | 'none';
     expoUrl: string;
@@ -117,6 +133,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     minAppVersion: e.MIN_APP_VERSION,
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
     blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
+    blobS3: e.BLOB_DRIVER === 's3' ? s3Config(env, e) : null,
     push: {
       provider: e.PUSH_PROVIDER ?? (e.NODE_ENV === 'test' ? 'none' : 'expo'),
       expoUrl: e.EXPO_PUSH_URL,

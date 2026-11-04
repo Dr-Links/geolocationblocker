@@ -6,12 +6,14 @@ import { MailError } from './mail/errors.js';
 import { getMailbox, loadSecrets, pinsOf, recordFailure, recordSuccess, settingsOf } from './mailboxes/repo.js';
 import { emails } from './lib/emails.js';
 import { sendSafely, type Mailer } from './lib/mailer.js';
+import { storageHousekeeping, type StorageHousekeeping } from './storage/housekeeping.js';
 
 export interface TickResult {
   expired: number;
   warned: number;
   mailboxRetries: { attempted: number; recovered: number };
   pruned: Record<string, number>;
+  storage: StorageHousekeeping | null;
 }
 
 /** Re-tests mailboxes whose last connection failed temporarily (bounded by backoff). */
@@ -71,6 +73,12 @@ export async function schedulerTick(db: Db, cfg: Config, mailer: Mailer, log: (m
 
   const { rows: pr } = await db.query<{ r: Record<string, number> }>(`SELECT app.prune_operational_data() AS r`);
   await db.query(`SELECT app.prune_change_feed()`);
+  let storage: StorageHousekeeping | null = null;
+  try {
+    storage = await storageHousekeeping(cfg, db, log);
+  } catch (err) {
+    log(`storage housekeeping failed: ${(err as Error).message}`);
+  }
   if (expired.length || warnings.length) log(`scheduler: expired ${expired.length}, warned ${warnings.length}`);
-  return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {} };
+  return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {}, storage };
 }

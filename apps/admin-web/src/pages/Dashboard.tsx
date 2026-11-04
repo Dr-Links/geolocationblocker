@@ -8,8 +8,11 @@ interface Dash {
   failedLogins24h: number;
   mailboxes: Record<string, number>;
   sendFailures24h: number;
+  storage: { totalUsedBytes: number; warning: number; full: number; top: Array<{ id: string; email: string; usedBytes: number; quotaBytes: number; state: string }> };
   mailboxProblems: Array<{ id: string; userId: string; owner: string; email: string; status: string; statusDetail: string | null; lastErrorAt: string | null }>;
 }
+
+const gb = (n: number) => `${(n / 1024 ** 3).toFixed(2)} GB`;
 
 export function Dashboard() {
   const [d, setD] = useState<Dash | null>(null);
@@ -49,6 +52,17 @@ export function Dashboard() {
               <tr key={p.id}><td>{p.email}</td><td><Link to={`/users/${p.userId}`}>{p.owner}</Link></td><td>{p.status.replace('_', ' ')}</td><td className="wrap">{p.statusDetail ?? '—'}</td><td>{fmt(p.lastErrorAt)}</td></tr>
             ))}
           </tbody></table></div>
+        )}
+      </Card>
+      <Card title="Storage">
+        <p>Total stored: <strong>{gb(d.storage.totalUsedBytes)}</strong> · Users above 80 %: <strong>{d.storage.warning}</strong> · Full: <strong>{d.storage.full}</strong></p>
+        {d.storage.top.length === 0 ? null : (
+          <table><thead><tr><th>User</th><th>Used</th><th>Quota</th><th></th></tr></thead><tbody>
+            {d.storage.top.map((u) => (
+              <tr key={u.id}><td><Link to={`/users/${u.id}`}>{u.email}</Link></td><td>{gb(u.usedBytes)}</td><td>{gb(u.quotaBytes)}</td>
+                <td>{u.state === 'full' ? 'Full' : u.state === 'warning' ? 'Above 80 %' : ''}</td></tr>
+            ))}
+          </tbody></table>
         )}
       </Card>
       <Card title="Security">

@@ -182,6 +182,9 @@ export const api = {
   }) => authed<{ outbound: OutboundDto }>('POST', '/v1/outbound', input),
   registerPushToken: (token: string, provider: 'expo' | 'fcm') => authed('PUT', '/v1/devices/current/push', { token, provider }),
   unregisterPush: () => authed<void>('DELETE', '/v1/devices/current/push'),
+  storage: () => authed<{ storage: StorageInfo }>('GET', '/v1/storage'),
+  setStorageSettings: (bodyRetentionDays: number | null) => authed<{ storage: StorageInfo }>('PUT', '/v1/storage/settings', { bodyRetentionDays }),
+  removeDeletedOnServer: () => authed<{ removed: number; storage: StorageInfo }>('POST', '/v1/storage/remove-deleted-on-server', { confirm: true }),
   notificationPreferences: () => authed<{ defaults: { newMail: boolean; sendProblems: boolean; mailboxProblems: boolean; reminders: boolean }; mailboxes: Array<{ mailboxId: string; newMail: boolean }> }>('GET', '/v1/notification-preferences'),
   setNotificationPreferences: (p: { defaults: { newMail: boolean; sendProblems: boolean; mailboxProblems: boolean; reminders: boolean }; mailboxes: Array<{ mailboxId: string; newMail: boolean }> }) =>
     authed('PUT', '/v1/notification-preferences', p),
@@ -236,3 +239,9 @@ export const api = {
   disconnectMailbox: (id: string, mode: 'keep' | 'delete', confirmEmail: string) =>
     authed<{ ok: true }>('POST', `/v1/mailboxes/${id}/disconnect`, { mode, confirmEmail }),
 };
+
+export interface StorageInfo {
+  usedBytes: number; quotaBytes: number; bodyBytes: number; fileBytes: number; messageCount: number;
+  state: 'ok' | 'warning' | 'full'; bodyRetentionDays: number | null;
+  mailboxes?: Array<{ mailboxId: string; email: string; messages: number; textBytes: number; deletedOnServer: number }>;
+}

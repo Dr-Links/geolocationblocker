@@ -35,6 +35,7 @@
     "@types/pg": "8.23.1",
     "@types/sanitize-html": "^2.16.2",
     "@types/smtp-server": "^3.5.13",
+    "s3rver": "^3.7.1",
     "smtp-server": "^3.21.3",
     "tsup": "9.0.0",
     "tsx": "4.23.15",

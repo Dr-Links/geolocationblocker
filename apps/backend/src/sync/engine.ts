@@ -2,6 +2,7 @@ import type { FetchMessageObject, ImapFlow } from 'imapflow';
 import { simpleParser } from 'mailparser';
 import type { Config } from '../lib/config.js';
 import { withUser, type Db, type Tx } from '../lib/db.js';
+import { canStore } from '../storage/quota.js';
 import { classify, MailError, mailError } from '../mail/errors.js';
 import { createImapClient, toMailError } from '../mail/imap.js';
 import { getMailbox, loadSecrets, pinsOf, recordFailure, settingsOf, type MailboxRow } from '../mailboxes/repo.js';
@@ -164,6 +165,12 @@ async function syncFolder(env: SyncEnv, client: ImapFlow, mailbox: MailboxRow, f
     const batch = missing.slice(0, BATCH_PER_FOLDER);
     for (let i = 0; i < batch.length && !outOfTime(env); i += 25) {
       const chunk = batch.slice(i, i + 25);
+      // Re-checked per chunk: a large first sync can fill the quota part-way through.
+      const policy = await withUser(env.db, env.userId, async (c) => {
+        const [ok, p] = await Promise.all([canStore(c), c.query<{ body_retention_days: number | null }>(`SELECT body_retention_days FROM storage_preferences`)]);
+        return { full: !ok, retentionDays: p.rows[0]?.body_retention_days ?? null };
+      });
+      const keepAfter = policy.retentionDays ? Date.now() - policy.retentionDays * 86_400_000 : 0;
       const fetched: FetchMessageObject[] = [];
       for await (const msg of client.fetch(chunk.join(','), {
         uid: true, flags: true, envelope: true, internalDate: true, size: true, bodyStructure: true, emailId: true, headers: EXTRA_HEADERS,
@@ -172,7 +179,11 @@ async function syncFolder(env: SyncEnv, client: ImapFlow, mailbox: MailboxRow, f
         if (outOfTime(env)) break;
         const incoming = toIncoming(msg, folder.id, uidValidity);
         try {
-          incoming.body = await fetchBody(client, msg.uid, msg.size ?? null, msg.bodyStructure as StructureNode | undefined);
+          // Text older than the user's retention setting is not stored (it is fetched when opened).
+          if (policy.full) incoming.skippedForQuota = true;
+          else if (incoming.receivedAt.getTime() >= keepAfter) {
+            incoming.body = await fetchBody(client, msg.uid, msg.size ?? null, msg.bodyStructure as StructureNode | undefined);
+          }
         } catch (err) {
           env.log(`body fetch failed for uid ${msg.uid} in ${folder.path}: ${(err as Error).message}`);
         }

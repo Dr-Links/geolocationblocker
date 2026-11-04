@@ -31,6 +31,7 @@ export function UserDetail({ id }: { id: string }) {
             <dt>Registered</dt><dd>{fmt(u.createdAt)}</dd>
             <dt>Last sign-in</dt><dd>{fmt(u.lastLoginAt)}</dd>
             <dt>Storage quota</dt><dd>{u.effectiveQuotaBytes ? `${(u.effectiveQuotaBytes / GB).toFixed(1)} GB` : '—'}{u.storageQuotaBytes === null ? ' (default)' : ''}</dd>
+            <dt>Storage used</dt><dd>{(u.storageUsedBytes / GB).toFixed(2)} GB, {u.storedMessages} messages{u.storageState === 'full' ? ' — full: new message text is not being stored' : u.storageState === 'warning' ? ' — above 80 %' : ''}</dd>
           </dl>
         </Card>
         <Actions d={d} onDone={done} />
