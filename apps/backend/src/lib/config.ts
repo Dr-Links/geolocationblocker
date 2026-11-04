@@ -11,6 +11,14 @@ function s3Config(env: NodeJS.ProcessEnv, e: { S3_ENDPOINT?: string; S3_REGION: 
   return { endpoint: e.S3_ENDPOINT, region: e.S3_REGION, bucket: e.S3_BUCKET, prefix: e.S3_PREFIX, pathStyle: e.S3_PATH_STYLE ?? true, accessKeyId, secretAccessKey };
 }
 
+function backupKey(env: NodeJS.ProcessEnv): Buffer | undefined {
+  const b64 = secret(env, 'BACKUP_KEY');
+  if (!b64) return undefined;
+  const k = Buffer.from(b64, 'base64');
+  if (k.length !== 32) throw new Error('BACKUP_KEY must be 32 bytes, base64-encoded');
+  return k;
+}
+
 function secret(env: NodeJS.ProcessEnv, name: string): string | undefined {
   const direct = env[name];
   if (direct) return direct;
@@ -54,6 +62,16 @@ const schema = z.object({
   MAIL_EXTRA_CA_FILE: z.string().optional(),
   BLOB_DIR: z.string().optional(),
   BLOB_DRIVER: z.enum(['local', 's3']).default('local'),
+  BACKUP_TARGET: z.enum(['local', 's3']).default('local'),
+  BACKUP_DIR: z.string().optional(),
+  BACKUP_KEEP: z.coerce.number().int().min(1).max(365).default(14),
+  BACKUP_S3_BUCKET: z.string().optional(),
+  BACKUP_S3_PREFIX: z.string().default('backups'),
+  PG_DUMP_PATH: z.string().default('pg_dump'),
+  PG_RESTORE_PATH: z.string().default('pg_restore'),
+  CLAMAV_HOST: z.string().optional(),
+  CLAMAV_PORT: z.coerce.number().int().min(1).max(65535).default(3310),
+  CLAMAV_REQUIRED: bool,
   S3_ENDPOINT: z.string().url().optional(),
   S3_REGION: z.string().default('us-east-1'),
   S3_BUCKET: z.string().optional(),
@@ -83,6 +101,16 @@ export interface Config {
   httpRateLimit: boolean;
   /** Where encrypted file copies (attachments, uploads) are stored. */
   blobDir: string;
+  clamav: { host: string; port: number; required: boolean } | null;
+  backup: {
+    target: 'local' | 's3';
+    dir: string;
+    keep: number;
+    key?: Buffer;
+    s3: { endpoint: string; region: string; bucket: string; prefix?: string; pathStyle: boolean; accessKeyId: string; secretAccessKey: string } | null;
+    pgDump: string;
+    pgRestore: string;
+  };
   blobS3: { endpoint: string; region: string; bucket: string; prefix?: string; pathStyle: boolean; accessKeyId: string; secretAccessKey: string } | null;
   push: {
     provider: 'expo' | 'fcm' | 'none';
@@ -134,6 +162,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     httpRateLimit: e.HTTP_RATE_LIMIT ?? e.NODE_ENV !== 'test',
     blobDir: e.BLOB_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-blobs' : './data/blobs'),
     blobS3: e.BLOB_DRIVER === 's3' ? s3Config(env, e) : null,
+    backup: {
+      target: e.BACKUP_TARGET,
+      dir: e.BACKUP_DIR ?? (e.NODE_ENV === 'test' ? '/var/tmp/emailplatform-test-backups' : './data/backups'),
+      keep: e.BACKUP_KEEP,
+      key: backupKey(env),
+      s3: e.BACKUP_TARGET === 's3' ? { ...s3Config(env, e), bucket: e.BACKUP_S3_BUCKET ?? s3Config(env, e).bucket, prefix: e.BACKUP_S3_PREFIX } : null,
+      pgDump: e.PG_DUMP_PATH,
+      pgRestore: e.PG_RESTORE_PATH,
+    },
+    clamav: e.CLAMAV_HOST ? { host: e.CLAMAV_HOST, port: e.CLAMAV_PORT, required: e.CLAMAV_REQUIRED ?? false } : null,
     push: {
       provider: e.PUSH_PROVIDER ?? (e.NODE_ENV === 'test' ? 'none' : 'expo'),
       expoUrl: e.EXPO_PUSH_URL,

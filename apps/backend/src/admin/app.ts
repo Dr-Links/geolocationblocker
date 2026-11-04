@@ -1,4 +1,6 @@
 import cookie from '@fastify/cookie';
+import { recordDeletion } from '../backup/backup.js';
+import { normalizePattern } from '../routes/security.js';
 import fastifyStatic from '@fastify/static';
 import { checkPassword, PASSWORD_PROBLEM_TEXT, isValidTimeZone } from '@app/shared';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
@@ -276,6 +278,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       `SELECT count(*)::int AS n FROM outbound_messages WHERE status IN ('failed','uncertain') AND created_at > now() - interval '24 hours'`);
     const { rows: st } = await db.query<{ o_user_id: string; o_used: string; o_quota: string; o_state: string; email_display: string }>(
       `SELECT o.*, u.email_display FROM app.storage_overview() o JOIN users u ON u.id = o.o_user_id ORDER BY o.o_used::numeric / greatest(o.o_quota, 1) DESC`);
+    const { rows: health } = await db.query<{ h: Record<string, unknown> }>(`SELECT app.platform_health() AS h`);
     const sum = (pred: (r: { status: string; verified: boolean }) => boolean) => counts.filter(pred).reduce((a, r) => a + r.n, 0);
     return {
       counts: {
@@ -289,6 +292,7 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       failedLogins24h: fails[0]?.n ?? 0,
       mailboxes: Object.fromEntries(mbx.map((r) => [r.status, r.n])),
       sendFailures24h: sendFails[0]?.n ?? 0,
+      health: health[0]?.h ?? {},
       storage: {
         totalUsedBytes: st.reduce((a, r) => a + Number(r.o_used), 0),
         warning: st.filter((r) => r.o_state === 'warning').length,
@@ -479,9 +483,40 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       await verifySecondFactor(c, cfg, a.userId, body);
       await c.query(`INSERT INTO deletion_requests (subject_type, subject_id, user_id, mode, requested_by, status, completed_at)
                      VALUES ('user', $1, $1, 'purge', $2, 'completed', now())`, [id, a.userId]);
-      // Cascades to every user-owned table. Later milestones also remove stored files and mailbox data.
+      // Written outside the database first, so a restored backup can never bring this user back.
+      try {
+        await recordDeletion(cfg, id);
+      } catch (err) {
+        throw new AppError(503, 'internal_error', `The deletion could not be recorded in the deletion ledger, so nothing was deleted: ${(err as Error).message}`);
+      }
+      // Cascades to every user-owned table; their key is deleted too, and stored files are removed by housekeeping.
       await c.query(`DELETE FROM users WHERE id = $1 AND role = 'user'`, [id]);
       await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'user.deleted', targetType: 'user', targetId: id, targetUserId: id, ip: req.ip });
+    });
+    return { ok: true };
+  });
+
+  // ---- Platform sender blocklist ----
+  app.get('/admin/api/blocklist', guarded, async () => {
+    const { rows } = await db.query<{ pattern: string; reason: string | null; created_at: Date }>(
+      `SELECT pattern, reason, created_at FROM platform_blocklist ORDER BY pattern`);
+    return { blocklist: rows.map((r) => ({ pattern: r.pattern, reason: r.reason, createdAt: iso(r.created_at) })) };
+  });
+  app.post('/admin/api/blocklist', guarded, async (req) => {
+    const body = parse(z.object({ pattern: z.string().max(254), reason: z.string().max(300).nullable().optional() }), req.body);
+    const pattern = normalizePattern(body.pattern);
+    await adminTx(req, async (c, a) => {
+      await c.query(`INSERT INTO platform_blocklist (pattern, reason, created_by) VALUES ($1, $2, $3)
+                     ON CONFLICT (pattern) DO UPDATE SET reason = EXCLUDED.reason`, [pattern, body.reason ?? null, a.userId]);
+      await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'blocklist.added', targetType: 'platform', ip: req.ip, details: { pattern } });
+    });
+    return { pattern };
+  });
+  app.delete('/admin/api/blocklist', guarded, async (req) => {
+    const q = parse(z.object({ pattern: z.string().max(254) }), req.query);
+    await adminTx(req, async (c, a) => {
+      await c.query(`DELETE FROM platform_blocklist WHERE pattern = $1`, [q.pattern.trim().toLowerCase()]);
+      await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'blocklist.removed', targetType: 'platform', ip: req.ip, details: { pattern: q.pattern } });
     });
     return { ok: true };
   });

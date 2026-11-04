@@ -39,6 +39,8 @@ export function handleNotificationTaps(): () => void {
     else if (d?.type === 'new_mail') router.push('/inbox');
     else if (d?.type === 'send_problem') router.push('/outbox');
     else if (d?.type === 'mailbox_problem' && d.mailboxId) router.push({ pathname: '/mailbox/[id]', params: { id: d.mailboxId } });
+    else if (d?.type === 'reminder' && d.messageId) router.push({ pathname: '/message/[id]', params: { id: d.messageId } });
+    else if (d?.type === 'storage') router.push('/storage');
   });
   return () => sub.remove();
 }

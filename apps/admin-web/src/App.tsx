@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { Audit } from './pages/Audit';
+import { Blocklist } from './pages/Blocklist';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
 import { Emergency, ForgotPassword, ResetPassword } from './pages/Recovery';
@@ -35,6 +36,7 @@ export function App() {
   else if (path === '/users') page = <Users search={search} />;
   else if (path === '/audit') page = <Audit />;
   else if (path === '/settings') page = <Settings />;
+  else if (path === '/blocklist') page = <Blocklist />;
   else page = <Dashboard />;
 
   const nav = (to: string, label: string) => (
@@ -45,7 +47,7 @@ export function App() {
     <div className="layout">
       <header className="topbar">
         <strong className="brand">Email Platform · Admin</strong>
-        <nav>{nav('/', 'Dashboard')}{nav('/users', 'Users')}{nav('/audit', 'Audit log')}{nav('/settings', 'Settings')}</nav>
+        <nav>{nav('/', 'Dashboard')}{nav('/users', 'Users')}{nav('/blocklist', 'Blocklist')}{nav('/audit', 'Audit log')}{nav('/settings', 'Settings')}</nav>
         <span className="who">{me.email}
           <button className="linklike" onClick={async () => { await api.post('/auth/logout').catch(() => undefined); setMe(null); navigate('/'); }}>Sign out</button>
         </span>

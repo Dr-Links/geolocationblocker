@@ -7,7 +7,7 @@ import type { Deps } from '../app.js';
 
 const LIST_SELECT = `SELECT m.id, m.mailbox_id, mb.email_address AS mailbox_email, mb.display_name AS mailbox_name, mb.label_color,
        mb.status AS mailbox_status, m.thread_id, m.subject, m.from_address, m.from_name, m.to_summary, m.received_at, m.snippet,
-       m.is_seen, m.is_flagged, m.is_answered, m.has_attachments, m.priority, m.has_pending_ops, m.server_state
+       m.is_seen, m.is_flagged, m.is_answered, m.has_attachments, m.priority, m.has_pending_ops, m.server_state, m.security_flags
   FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id`;
 
 export function registerThreadRoutes(app: FastifyInstance, deps: Deps) {

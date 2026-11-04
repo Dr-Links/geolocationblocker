@@ -58,6 +58,7 @@ export function MessageList({ query, showMailbox, empty }: { query: MessageListQ
               {m.from?.name || m.from?.address || '(no sender)'}
             </Text>
             {m.priority === 'high' ? <Text style={{ color: t.danger, fontWeight: '700' }}>!</Text> : null}
+            {m.security && m.security !== 'none' ? <Text accessibilityLabel={m.security === 'danger' ? 'Looks dangerous' : 'Be careful'} style={{ color: m.security === 'danger' ? t.danger : t.warn }}>⚠</Text> : null}
             {m.isFlagged ? <Text accessibilityLabel="Starred" style={{ color: t.warn }}>★</Text> : null}
             {m.hasAttachments ? <Text accessibilityLabel="Has attachments" style={{ color: t.muted }}>📎</Text> : null}
             <Text style={{ color: t.muted, fontSize: 12 }}>{shortDate(m.receivedAt)}</Text>

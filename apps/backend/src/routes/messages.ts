@@ -18,12 +18,12 @@ interface ListRow {
   id: string; mailbox_id: string; mailbox_email: string; mailbox_name: string | null; label_color: string | null; mailbox_status: string;
   thread_id: string; subject: string | null; from_address: string | null; from_name: string | null; to_summary: string | null;
   received_at: Date; snippet: string | null; is_seen: boolean; is_flagged: boolean; is_answered: boolean; has_attachments: boolean;
-  priority: string; has_pending_ops: boolean; server_state: string;
+  priority: string; has_pending_ops: boolean; server_state: string; security_flags: { level?: string; reasons?: Array<{ code: string; detail?: string }> } | null;
 }
 
 const LIST_SELECT = `SELECT m.id, m.mailbox_id, mb.email_address AS mailbox_email, mb.display_name AS mailbox_name, mb.label_color,
        mb.status AS mailbox_status, m.thread_id, m.subject, m.from_address, m.from_name, m.to_summary, m.received_at, m.snippet,
-       m.is_seen, m.is_flagged, m.is_answered, m.has_attachments, m.priority, m.has_pending_ops, m.server_state
+       m.is_seen, m.is_flagged, m.is_answered, m.has_attachments, m.priority, m.has_pending_ops, m.server_state, m.security_flags
   FROM messages m JOIN mailboxes mb ON mb.id = m.mailbox_id`;
 
 export const summary = (r: ListRow) => ({
@@ -42,6 +42,8 @@ export const summary = (r: ListRow) => ({
   priority: r.priority,
   pendingSync: r.has_pending_ops,
   onServer: r.server_state === 'present',
+  security: (r.security_flags?.level ?? 'none') as 'none' | 'caution' | 'danger',
+  securityReasons: r.security_flags?.reasons ?? [],
 });
 
 async function loadSummary(c: Tx, id: string) {
@@ -128,19 +130,20 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
     const load = () => withUser(db.api, uid, async (c) => {
       const base = await loadSummary(c, id);
       if (!base) return null;
-      const [detail, body, addrs, atts, locs] = await Promise.all([
+      const [detail, body, addrs, atts, locs, rem] = await Promise.all([
         c.query<{ message_id_header: string | null; in_reply_to: string | null; sent_at: Date | null; size_bytes: number | null; body_state: string;
                   auth_results: unknown; mailbox_id: string }>(
           `SELECT message_id_header, in_reply_to, sent_at, size_bytes, body_state, auth_results, mailbox_id FROM messages WHERE id = $1`, [id]),
         c.query<{ text_body: string | null; html_sanitized: string | null; has_remote_content: boolean }>(
           `SELECT text_body, html_sanitized, has_remote_content FROM message_bodies WHERE message_id = $1`, [id]),
         c.query<{ kind: string; address: string; name: string | null }>(`SELECT kind, address, name FROM message_addresses WHERE message_id = $1 ORDER BY kind, position`, [id]),
-        c.query<{ id: string; filename: string; mime_type: string; size_bytes: number; is_inline: boolean; risk_level: string; content_id: string | null }>(
-          `SELECT id, filename, mime_type, size_bytes, is_inline, risk_level, content_id FROM attachments WHERE message_id = $1 ORDER BY part_id`, [id]),
+        c.query<{ id: string; filename: string; mime_type: string; size_bytes: number; is_inline: boolean; risk_level: string; content_id: string | null; scan_status: string | null }>(
+          `SELECT id, filename, mime_type, size_bytes, is_inline, risk_level, content_id, scan_status FROM attachments WHERE message_id = $1 ORDER BY part_id`, [id]),
         c.query<{ folder_id: string; display_name: string; special_use: string | null }>(
           `SELECT f.id AS folder_id, f.display_name, f.special_use FROM message_locations l JOIN folders f ON f.id = l.folder_id WHERE l.message_id = $1`, [id]),
+        c.query<{ remind_at: Date; only_if_no_reply: boolean; status: string }>(`SELECT remind_at, only_if_no_reply, status FROM reminders WHERE message_id = $1 AND status = 'pending'`, [id]),
       ]);
-      return { base, detail: detail.rows[0]!, body: body.rows[0] ?? null, addrs: addrs.rows, atts: atts.rows, locs: locs.rows };
+      return { base, detail: detail.rows[0]!, body: body.rows[0] ?? null, addrs: addrs.rows, atts: atts.rows, locs: locs.rows, reminder: rem.rows[0] ?? null };
     });
     let m = await load();
     if (!m) throw new AppError(404, 'not_found', 'Message not found.');
@@ -209,8 +212,9 @@ export function registerMessageRoutes(app: FastifyInstance, deps: Deps) {
         folders: m.locs.map((l) => ({ id: l.folder_id, name: l.display_name, specialUse: l.special_use })),
         body: m.body ? { text: m.body.text_body, html, hasRemoteContent: m.body.has_remote_content, remoteContentShown: allowRemote } : null,
         bodyError,
+        reminder: m.reminder ? { remindAt: m.reminder.remind_at.toISOString(), onlyIfNoReply: m.reminder.only_if_no_reply } : null,
         attachments: m.atts.map((a) => ({ id: a.id, filename: a.filename, mimeType: a.mime_type, sizeBytes: a.size_bytes, isInline: a.is_inline,
-          risk: a.risk_level, contentId: a.content_id })),
+          risk: a.risk_level, contentId: a.content_id, scan: a.scan_status })),
       },
     };
   });

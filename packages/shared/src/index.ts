@@ -158,7 +158,7 @@ export const ERROR_CODES = [
   'account_pending', 'account_suspended', 'account_expired', 'too_many_attempts',
   'unauthorized', 'session_revoked', 'not_found', 'invalid_token', 'weak_password',
   'mfa_required', 'invalid_mfa_code', 'csrf_failed', 'conflict', 'internal_error', 'mailbox_connect_failed',
-  'limit_reached',
+  'limit_reached', 'malware_detected', 'scanner_unavailable',
 ] as const;
 export type ErrorCode = (typeof ERROR_CODES)[number];
 
@@ -246,7 +246,26 @@ export interface MessageSummary {
   pendingSync: boolean;
   /** False when the message was deleted on the server and only the platform copy remains. */
   onServer: boolean;
+  /** Heuristic phishing / spoofing warning. Never hides mail; the user decides. */
+  security: 'none' | 'caution' | 'danger';
+  securityReasons: Array<{ code: string; detail?: string }>;
 }
+
+/** Plain-language explanations of security warnings, shown in the app. */
+export const SECURITY_REASON_TEXT: Record<string, string> = {
+  dmarc_fail: "The sender's domain says this message did not come from them (DMARC failed). It is very likely forged.",
+  spf_fail: "This message was sent from a server the sender's domain does not allow (SPF failed).",
+  display_name_spoof: 'The sender name shows a different email address than the one it really came from.',
+  lookalike_sender: 'The sender address imitates a well-known company.',
+  unusual_characters: 'The sender address uses unusual characters that can imitate other letters.',
+  reply_to_differs: 'Replies would go to a different address than the sender.',
+  link_mismatch: 'A link shows one website but leads to another.',
+  lookalike_link: 'A link leads to a website that imitates a well-known company.',
+  ip_link: 'A link leads to a bare server address instead of a website name.',
+  dangerous_attachment: 'An attachment is a program or script that can harm your device.',
+  malware: 'The virus scanner found malware in an attachment.',
+  blocked_sender: 'This sender is on a block list.',
+};
 
 export interface AddressDto { address: string; name: string | null }
 
@@ -263,7 +282,9 @@ export interface MessageDetail extends MessageSummary {
   folders: Array<{ id: string; name: string; specialUse: string | null }>;
   body: { text: string | null; html: string | null; hasRemoteContent: boolean; remoteContentShown: boolean } | null;
   bodyError: string | null;
-  attachments: Array<{ id: string; filename: string; mimeType: string; sizeBytes: number; isInline: boolean; risk: 'unknown' | 'low' | 'elevated' | 'dangerous'; contentId: string | null }>;
+  reminder: { remindAt: string; onlyIfNoReply: boolean } | null;
+  attachments: Array<{ id: string; filename: string; mimeType: string; sizeBytes: number; isInline: boolean; risk: 'unknown' | 'low' | 'elevated' | 'dangerous';
+    contentId: string | null; scan: 'clean' | 'infected' | 'error' | null }>;
 }
 
 export interface FolderDto {

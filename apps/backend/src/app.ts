@@ -15,6 +15,7 @@ import { registerSearchRoutes } from './routes/search.js';
 import { registerComposeRoutes } from './routes/compose.js';
 import { registerDeviceRoutes } from './routes/devices.js';
 import { registerStorageRoutes } from './routes/storage.js';
+import { registerSecurityRoutes } from './routes/security.js';
 import { registerThreadRoutes } from './routes/threads.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPageRoutes } from './routes/pages.js';
@@ -89,5 +90,6 @@ export async function buildUserApi(input: Omit<Deps, 'discovery'> & { discovery?
   registerComposeRoutes(app, deps);
   registerDeviceRoutes(app, deps);
   registerStorageRoutes(app, deps);
+  registerSecurityRoutes(app, deps);
   return app;
 }

@@ -18,6 +18,7 @@ import { schedulerTick } from './scheduler.js';
 import { runSyncPass } from './sync/runner.js';
 import { runSendPass } from './send/sender.js';
 import { dispatchNotifications } from './push/notify.js';
+import { fetchBackup, listBackups, reapplyDeletions, restoreTest, runBackup } from './backup/backup.js';
 
 const HELP = `Usage: node dist/cli.js <command>
 
@@ -33,6 +34,11 @@ const HELP = `Usage: node dist/cli.js <command>
   sync:daemon             Keep syncing until stopped (for a server that allows permanent processes)
   cron                    One-minute cron entry point: scheduler tick, then sync for the rest of the minute
   check:outbound          Test whether this server can reach external mail servers (Milestone 2 prerequisite)
+  backup:run              Encrypted database backup to BACKUP_TARGET (run daily from cron); needs pg_dump and BACKUP_KEY
+  backup:list             List stored backups
+  backup:fetch <name> <file>     Download and decrypt a backup into a file for pg_restore
+  backup:restore-test [name]     Restore a backup (default: newest) into DB_NAME_SCRATCH, re-apply deletions, check it
+  backup:reapply-deletions       After restoring a backup: delete again every user in the deletion ledger
 `;
 
 function arg(name: string): string | undefined {
@@ -61,6 +67,7 @@ async function main() {
     const pem = await TokenSigner.generatePem();
     console.log('# Save these to files outside the web root and point *_FILE settings at them.\n');
     console.log('CREDENTIAL_KEY=' + randomBytes(32).toString('base64'));
+    console.log('BACKUP_KEY=' + randomBytes(32).toString('base64') + '   (keep a copy OFF this server: without it backups cannot be read)');
     console.log('\nJWT_PRIVATE_KEY (PEM):\n' + pem);
     return;
   }
@@ -232,6 +239,37 @@ async function main() {
       } while (cmd === 'sync:daemon' && !stop);
     } finally {
       await worker.end();
+    }
+    return;
+  }
+
+  if (cmd.startsWith('backup:')) {
+    const cfg = loadConfig();
+    const owner = createPool(cfg, 'owner', 2);
+    try {
+      if (cmd === 'backup:run') {
+        await runBackup(cfg, owner);
+      } else if (cmd === 'backup:list') {
+        for (const b of await listBackups(cfg)) console.log(b);
+      } else if (cmd === 'backup:fetch') {
+        const [name, out] = [process.argv[3], process.argv[4]];
+        if (!name || !out) throw new Error('usage: backup:fetch <name> <output-file>');
+        console.log(`decrypted ${await fetchBackup(cfg, name, out)} bytes to ${out}; restore with: pg_restore --no-owner -d <empty database> ${out}`);
+      } else if (cmd === 'backup:reapply-deletions') {
+        const r = await reapplyDeletions(cfg, owner);
+        console.log(`ledger entries: ${r.checked}, users deleted again: ${r.deleted}`);
+      } else if (cmd === 'backup:restore-test') {
+        const scratch = process.env.DB_NAME_SCRATCH;
+        if (!scratch || scratch === cfg.db.database) throw new Error('set DB_NAME_SCRATCH to an EMPTY scratch database (never the live one)');
+        const name = process.argv[3] ?? (await listBackups(cfg)).at(-1);
+        if (!name) throw new Error('no backups found');
+        const r = await restoreTest(cfg, name, scratch);
+        console.log(`restore test of ${name}: OK — ${r.users} users, ${r.messages} messages; ${r.reapplied} deleted users removed again`);
+      } else {
+        throw new Error(`unknown command ${cmd}`);
+      }
+    } finally {
+      await owner.end();
     }
     return;
   }

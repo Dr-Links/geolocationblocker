@@ -3,6 +3,7 @@ import { simpleParser } from 'mailparser';
 import type { Config } from '../lib/config.js';
 import { withUser, type Db, type Tx } from '../lib/db.js';
 import { canStore } from '../storage/quota.js';
+import { applyBlocklist } from '../security/blocklist.js';
 import { classify, MailError, mailError } from '../mail/errors.js';
 import { createImapClient, toMailError } from '../mail/imap.js';
 import { getMailbox, loadSecrets, pinsOf, recordFailure, settingsOf, type MailboxRow } from '../mailboxes/repo.js';
@@ -187,10 +188,14 @@ async function syncFolder(env: SyncEnv, client: ImapFlow, mailbox: MailboxRow, f
         } catch (err) {
           env.log(`body fetch failed for uid ${msg.uid} in ${folder.path}: ${(err as Error).message}`);
         }
-        const r = await withUser(env.db, env.userId, (c) => storeMessage(c, env.userId, mailbox.id, folder.id, msg.uid, incoming));
+        const r = await withUser(env.db, env.userId, async (c) => {
+          const stored = await storeMessage(c, env.userId, mailbox.id, folder.id, msg.uid, incoming);
+          const blocked = stored.created && folder.special_use === 'inbox' ? await applyBlocklist(c, env.userId, mailbox.id, stored.id, incoming.from?.address ?? null) : null;
+          return { ...stored, blocked };
+        });
         if (r.created) {
           result.newMessages++;
-          if (folder.special_use === 'inbox' && wasInitialDone && !incoming.flags.is_seen) result.newInbox.push({ id: r.id });
+          if (folder.special_use === 'inbox' && wasInitialDone && !incoming.flags.is_seen && !r.blocked) result.newInbox.push({ id: r.id });
         }
       }
     }
@@ -263,6 +268,8 @@ export async function syncMailbox(env: SyncEnv, mailboxId: string): Promise<Sync
       if (!due) continue;
       await syncFolder(env, client, mailbox, folder, result);
     }
+    // Actions queued during this run (e.g. moving mail from blocked senders to Junk) are applied right away.
+    if (!outOfTime(env)) result.operations += await processOperations(env, client, mailbox);
     const allDone = folders.filter((f) => f.selectable && f.sync_enabled).every((f) => f.initial_done);
     await withUser(env.db, env.userId, (c) => c.query(
       `UPDATE mailboxes SET last_full_sync_at = now(), initial_sync_done = initial_sync_done OR $2,

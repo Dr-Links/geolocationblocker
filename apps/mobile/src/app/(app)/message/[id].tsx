@@ -1,4 +1,4 @@
-import type { FolderDto, MessageAction, MessageDetail } from '@app/shared';
+import { SECURITY_REASON_TEXT, type FolderDto, type MessageAction, type MessageDetail } from '@app/shared';
 import * as Clipboard from 'expo-clipboard';
 import { File, Paths } from 'expo-file-system';
 import { router, Stack, useLocalSearchParams } from 'expo-router';
@@ -34,6 +34,8 @@ export default function MessageView() {
   const [remote, setRemote] = useState(false);
   const [busy, setBusy] = useState(false);
   const [moveOpen, setMoveOpen] = useState(false);
+  const [remindOpen, setRemindOpen] = useState(false);
+  const [onlyIfNoReply, setOnlyIfNoReply] = useState(false);
   const [folders, setFolders] = useState<FolderDto[]>([]);
   const [details, setDetails] = useState(false);
 
@@ -84,6 +86,32 @@ export default function MessageView() {
       } else setNote((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  };
+
+  const remindChoices = (): Array<[string, Date]> => {
+    const at = (days: number, hour: number) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(hour, 0, 0, 0); return d; };
+    const inHours = new Date(Date.now() + 3 * 3600_000);
+    const nextMonday = at(((8 - new Date().getDay()) % 7) || 7, 9);
+    return [['In 3 hours', inHours], ['Tomorrow morning', at(1, 9)], ['In 3 days', at(3, 9)], ['Next week (Monday)', nextMonday]];
+  };
+  const remind = async (when: Date) => {
+    setRemindOpen(false);
+    try {
+      await api.setReminder(id, when, onlyIfNoReply);
+      setNote(`Reminder set for ${formatDateTime(when.toISOString())}. You will get a notification.`);
+      load(remote);
+    } catch (e) {
+      setNote((e as Error).message);
+    }
+  };
+  const block = async (scope: 'address' | 'domain') => {
+    try {
+      const r = await api.blockSender(id, scope);
+      setNote(`Blocked ${r.pattern.startsWith('@') ? `everyone at ${r.pattern.slice(1)}` : r.pattern}.${r.movedToJunk ? ' This message is being moved to Junk.' : ''} Manage blocked senders in Settings.`);
+      load(remote);
+    } catch (e) {
+      setNote((e as Error).message);
     }
   };
 
@@ -145,6 +173,12 @@ export default function MessageView() {
               [{ text: 'Cancel', style: 'cancel' }, { text: 'Delete', style: 'destructive', onPress: () => act('delete_forever', { confirm: true }) }]))
           : barBtn('Trash', () => act('trash'))}
         {barBtn(inJunk ? 'Not spam' : 'Spam', () => act(inJunk ? 'not_spam' : 'spam'))}
+        {barBtn(m.reminder ? '⏰ Reminder set' : '⏰ Remind me', () => setRemindOpen(true))}
+        {m.from ? barBtn('Block sender', () => Alert.alert('Block this sender?',
+          `New mail from them goes straight to the Junk folder and you will not be notified. Nothing is deleted.\n\n${m.from!.address}`,
+          [{ text: 'Cancel', style: 'cancel' },
+           { text: `Everyone at ${m.from!.address.split('@')[1]}`, onPress: () => block('domain') },
+           { text: 'This address', style: 'destructive', onPress: () => block('address') }])) : null}
         {barBtn('Move', async () => { const r = await api.folders(m.mailbox.id).catch(() => null); setFolders(r?.folders ?? []); setMoveOpen(true); })}
       </ScrollView>
 
@@ -165,7 +199,19 @@ export default function MessageView() {
         </Pressable>
         {!m.onServer ? <Text style={{ color: t.warn, marginTop: 6 }}>This message was deleted on the mail server. You are viewing the copy stored on this platform.</Text> : null}
         {m.pendingSync ? <Text style={{ color: t.warn, marginTop: 6 }}>Your last change is waiting to be confirmed by the mail server.</Text> : null}
-        {authFail ? <Text style={{ color: t.danger, marginTop: 6 }}>⚠ The sender of this message could not be verified. Be careful with links and attachments.</Text> : null}
+        {m.security !== 'none' ? (
+          <View accessibilityRole="alert" style={{ marginTop: 8, padding: 10, borderRadius: 8, backgroundColor: m.security === 'danger' ? '#fdecea' : '#fff4e5',
+            borderWidth: 1, borderColor: m.security === 'danger' ? t.danger : t.warn }}>
+            <Text style={{ color: m.security === 'danger' ? t.danger : '#8a5300', fontWeight: '700' }}>
+              {m.security === 'danger' ? '⚠ This message looks dangerous' : '⚠ Be careful with this message'}
+            </Text>
+            {m.securityReasons.map((r, i) => (
+              <Text key={i} style={{ color: '#3b3b3b', fontSize: 13, marginTop: 4 }}>• {SECURITY_REASON_TEXT[r.code] ?? r.code}{r.detail ? ` (${r.detail})` : ''}</Text>
+            ))}
+            <Text style={{ color: '#3b3b3b', fontSize: 12, marginTop: 6 }}>Do not enter passwords or payment details from links in this message. When in doubt, contact the sender another way.</Text>
+          </View>
+        ) : authFail ? <Text style={{ color: t.danger, marginTop: 6 }}>⚠ The sender of this message could not be verified. Be careful with links and attachments.</Text> : null}
+        {m.reminder ? <Text style={{ color: t.muted, marginTop: 6 }}>⏰ Reminder {formatDateTime(m.reminder.remindAt)}{m.reminder.onlyIfNoReply ? ' (only if nobody replies)' : ''}</Text> : null}
         {note ? <Text style={{ color: t.warn, marginTop: 6 }}>{note}</Text> : null}
         {m.body?.hasRemoteContent && !m.body.remoteContentShown ? (
           <Button title="Show images" variant="secondary" onPress={() => { setRemote(true); load(true); }} />
@@ -203,6 +249,29 @@ export default function MessageView() {
             : <Body muted>{m.bodyError ?? 'This message has no text.'}</Body>}
         </ScrollView>
       )}
+
+      <Modal visible={remindOpen} transparent animationType="slide" onRequestClose={() => setRemindOpen(false)}>
+        <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}>
+          <View style={{ backgroundColor: t.surface, borderTopLeftRadius: 16, borderTopRightRadius: 16, padding: 16 }}>
+            <Text style={{ color: t.text, fontWeight: '700', fontSize: 16, marginBottom: 8 }}>Remind me about this message</Text>
+            {remindChoices().map(([label, at]) => (
+              <Pressable key={label} accessibilityRole="button" onPress={() => remind(at)} style={{ paddingVertical: 12, borderBottomWidth: 1, borderColor: t.border }}>
+                <Text style={{ color: t.text }}>{label}</Text>
+                <Text style={{ color: t.muted, fontSize: 12 }}>{formatDateTime(at.toISOString())}</Text>
+              </Pressable>
+            ))}
+            <Pressable accessibilityRole="checkbox" accessibilityState={{ checked: onlyIfNoReply }} onPress={() => setOnlyIfNoReply(!onlyIfNoReply)} style={{ paddingVertical: 12 }}>
+              <Text style={{ color: t.text }}>{onlyIfNoReply ? '☑' : '☐'} Only if nobody replies by then</Text>
+            </Pressable>
+            {m.reminder ? <Button title="Remove reminder" variant="secondary" onPress={async () => {
+              setRemindOpen(false);
+              await api.deleteReminder(m.id).catch((e: Error) => setNote(e.message));
+              load(remote);
+            }} /> : null}
+            <Button title="Cancel" variant="link" onPress={() => setRemindOpen(false)} />
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={moveOpen} transparent animationType="slide" onRequestClose={() => setMoveOpen(false)}>
         <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#0006' }}>

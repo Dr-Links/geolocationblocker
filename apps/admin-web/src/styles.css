@@ -66,3 +66,4 @@ dd { margin: 0; }
 .codes { columns: 2; padding-left: 18px; }
 .enroll img { background: #fff; padding: 6px; border-radius: 8px; }
 td.wrap { white-space: normal; min-width: 220px; }
+td.danger { color: var(--danger); }

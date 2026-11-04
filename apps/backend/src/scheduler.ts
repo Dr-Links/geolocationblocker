@@ -6,6 +6,7 @@ import { MailError } from './mail/errors.js';
 import { getMailbox, loadSecrets, pinsOf, recordFailure, recordSuccess, settingsOf } from './mailboxes/repo.js';
 import { emails } from './lib/emails.js';
 import { sendSafely, type Mailer } from './lib/mailer.js';
+import { enqueueProblem } from './push/notify.js';
 import { storageHousekeeping, type StorageHousekeeping } from './storage/housekeeping.js';
 
 export interface TickResult {
@@ -14,6 +15,7 @@ export interface TickResult {
   mailboxRetries: { attempted: number; recovered: number };
   pruned: Record<string, number>;
   storage: StorageHousekeeping | null;
+  reminders: number;
 }
 
 /** Re-tests mailboxes whose last connection failed temporarily (bounded by backoff). */
@@ -48,6 +50,17 @@ export async function retryMailboxes(db: Db, cfg: Config, mailer: Mailer, log: (
   return { attempted: rows.length, recovered };
 }
 
+/** Follow-up reminders that are due become push notifications (mailbox address only, never subject or sender). */
+export async function fireReminders(db: Db): Promise<number> {
+  const { rows } = await db.query<{ r_id: string; r_user_id: string; r_message_id: string; r_mailbox_id: string; r_mailbox_email: string }>(
+    `SELECT * FROM app.claim_reminders()`);
+  for (const r of rows) {
+    await withUser(db, r.r_user_id, (c) => enqueueProblem(c, r.r_user_id, 'reminder', `reminder:${r.r_id}:${Date.now()}`,
+      `Reminder: follow up on a message in ${r.r_mailbox_email}`, { type: 'reminder', messageId: r.r_message_id, mailboxId: r.r_mailbox_id }, r.r_mailbox_id));
+  }
+  return rows.length;
+}
+
 /**
  * One scheduler pass. On cPanel this runs from cron every minute; on a server it can run in a loop.
  * Safe to run concurrently: the SQL functions lock rows with SKIP LOCKED and mark what they processed.
@@ -73,6 +86,7 @@ export async function schedulerTick(db: Db, cfg: Config, mailer: Mailer, log: (m
 
   const { rows: pr } = await db.query<{ r: Record<string, number> }>(`SELECT app.prune_operational_data() AS r`);
   await db.query(`SELECT app.prune_change_feed()`);
+  const reminders = await fireReminders(db).catch((err: Error) => { log(`reminders failed: ${err.message}`); return 0; });
   let storage: StorageHousekeeping | null = null;
   try {
     storage = await storageHousekeeping(cfg, db, log);
@@ -80,5 +94,5 @@ export async function schedulerTick(db: Db, cfg: Config, mailer: Mailer, log: (m
     log(`storage housekeeping failed: ${(err as Error).message}`);
   }
   if (expired.length || warnings.length) log(`scheduler: expired ${expired.length}, warned ${warnings.length}`);
-  return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {}, storage };
+  return { expired: expired.length, warned: warnings.length, mailboxRetries, pruned: pr[0]?.r ?? {}, storage, reminders };
 }

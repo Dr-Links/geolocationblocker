@@ -8,6 +8,12 @@ interface Dash {
   failedLogins24h: number;
   mailboxes: Record<string, number>;
   sendFailures24h: number;
+  health: {
+    outboundWaiting?: number; outboundOldestWaitingSeconds?: number | null; outboundUncertain?: number; notificationsPending?: number;
+    notificationsFailed24h?: number; mailboxesSyncLagging?: number; operationsFailed24h?: number; fileDeletesBacklog?: number;
+    remindersDue?: number; infectedAttachments30d?: number; lastSuccessfulBackupAt?: string | null;
+    lastBackup?: { status: string; startedAt: string; finishedAt: string | null; sizeBytes: number | null; error: string | null } | null;
+  };
   storage: { totalUsedBytes: number; warning: number; full: number; top: Array<{ id: string; email: string; usedBytes: number; quotaBytes: number; state: string }> };
   mailboxProblems: Array<{ id: string; userId: string; owner: string; email: string; status: string; statusDetail: string | null; lastErrorAt: string | null }>;
 }
@@ -54,6 +60,9 @@ export function Dashboard() {
           </tbody></table></div>
         )}
       </Card>
+      <Card title="System health">
+        <HealthTable h={d.health} />
+      </Card>
       <Card title="Storage">
         <p>Total stored: <strong>{gb(d.storage.totalUsedBytes)}</strong> · Users above 80 %: <strong>{d.storage.warning}</strong> · Full: <strong>{d.storage.full}</strong></p>
         {d.storage.top.length === 0 ? null : (
@@ -70,5 +79,26 @@ export function Dashboard() {
         <p>Messages that could not be sent (last 24 hours): <strong>{d.sendFailures24h}</strong></p>
       </Card>
     </>
+  );
+}
+
+function HealthTable({ h }: { h: Dash['health'] }) {
+  const backupAgeH = h.lastSuccessfulBackupAt ? (Date.now() - new Date(h.lastSuccessfulBackupAt).getTime()) / 3_600_000 : null;
+  const rows: Array<[string, string, boolean]> = [
+    ['Last successful backup', h.lastSuccessfulBackupAt ? `${fmt(h.lastSuccessfulBackupAt)}` : 'Never', backupAgeH === null || backupAgeH > 26],
+    ['Last backup run', h.lastBackup ? `${h.lastBackup.status}${h.lastBackup.error ? ` — ${h.lastBackup.error}` : ''}` : '—', h.lastBackup?.status === 'failed'],
+    ['Messages waiting to be sent', `${h.outboundWaiting ?? 0}${h.outboundOldestWaitingSeconds ? ` (oldest ${Math.round(h.outboundOldestWaitingSeconds / 60)} min)` : ''}`, (h.outboundOldestWaitingSeconds ?? 0) > 900],
+    ['Sends with unknown outcome', String(h.outboundUncertain ?? 0), (h.outboundUncertain ?? 0) > 0],
+    ['Mailboxes not synced for 30+ min', String(h.mailboxesSyncLagging ?? 0), (h.mailboxesSyncLagging ?? 0) > 0],
+    ['Failed mailbox actions (24 h)', String(h.operationsFailed24h ?? 0), (h.operationsFailed24h ?? 0) > 0],
+    ['Notifications waiting / failed (24 h)', `${h.notificationsPending ?? 0} / ${h.notificationsFailed24h ?? 0}`, (h.notificationsPending ?? 0) > 100],
+    ['Reminders overdue', String(h.remindersDue ?? 0), (h.remindersDue ?? 0) > 0],
+    ['File deletions waiting', String(h.fileDeletesBacklog ?? 0), (h.fileDeletesBacklog ?? 0) > 1000],
+    ['Infected attachments found (30 days)', String(h.infectedAttachments30d ?? 0), false],
+  ];
+  return (
+    <table><tbody>
+      {rows.map(([label, value, bad]) => <tr key={label}><td>{label}</td><td className={bad ? 'danger' : ''}><strong>{value}</strong>{bad ? ' ⚠' : ''}</td></tr>)}
+    </tbody></table>
   );
 }

@@ -1,4 +1,5 @@
 import type { Tx } from '../lib/db.js';
+import { refreshSecurity } from '../security/flags.js';
 import { normalizeSubject, type AttachmentMeta } from './parse.js';
 
 export interface FolderRow {
@@ -166,6 +167,7 @@ export async function storeMessage(c: Tx, userId: string, mailboxId: string, fol
           [userId, id, a.partId, a.filename, a.mimeType, a.sizeBytes, a.contentId, a.isInline, a.risk]);
       }
       if (m.body) await storeBody(c, userId, id, m.body, false);
+      else await refreshSecurity(c, id, null);
     } else {
       id = (await c.query<{ id: string }>(`SELECT id FROM messages WHERE mailbox_id = $1 AND provider_key = $2`, [mailboxId, m.providerKey])).rows[0]!.id;
     }
@@ -191,6 +193,7 @@ export async function storeBody(c: Tx, userId: string, messageId: string, body: 
             search_vector = CASE WHEN $3 THEN coalesce(search_vector, ''::tsvector) || setweight(to_tsvector('simple', left(coalesce($4, ''), 100000)), 'C')
                                  ELSE search_vector END
       WHERE id = $1`, [messageId, body.snippet, addToSearch, body.text]);
+  await refreshSecurity(c, messageId, body.html);
 }
 
 /**

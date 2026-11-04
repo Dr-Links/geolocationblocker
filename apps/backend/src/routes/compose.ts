@@ -4,6 +4,7 @@ import { withUser, type Tx } from '../lib/db.js';
 import { AppError, parse } from '../lib/errors.js';
 import { sanitizeEmailHtml } from '../sync/parse.js';
 import { storageStatus } from '../storage/quota.js';
+import { enforceScan, scanBytes } from '../security/clamav.js';
 import { putBlob } from '../storage/blobs.js';
 import { detectType, uploadRisk } from '../storage/sniff.js';
 import type { Deps } from '../app.js';
@@ -67,6 +68,7 @@ export function registerComposeRoutes(app: FastifyInstance, deps: Deps) {
       throw new AppError(400, 'validation_failed', 'Only PNG, JPEG, GIF or WebP images can be placed inside the message text.');
     }
     const uid = uidOf(req);
+    enforceScan(cfg, await scanBytes(cfg, data), 'this file');
     const row = await withUser(db.api, uid, async (c) => {
       const st = await storageStatus(c);
       if (st.usedBytes + data.length > st.quotaBytes) {
