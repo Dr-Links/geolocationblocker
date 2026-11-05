@@ -27,8 +27,8 @@ tested.
 
 ## 2. Deliverables
 
-* `dist/signalpost-central-1.1.0.zip` — the central application (folder `signalpost/`).
-* `dist/signalpost-connector-1.1.0.zip` — the WordPress plugin.
+* `dist/signalpost-central-1.2.0.zip` — the central application (folder `signalpost/`).
+* `dist/signalpost-connector-1.2.0.zip` — the WordPress plugin.
 
 Build them yourself from the repository with `build/build.sh` (see §9).
 
@@ -47,7 +47,7 @@ Tables are created by the installer; you do not import any SQL manually.
 ## 4. Upload the application
 
 1. cPanel → **File Manager** → your home directory (e.g. `/home/cpuser/`), **not** `public_html`.
-2. **Upload** `signalpost-central-1.1.0.zip`, then **Extract**. You get `/home/cpuser/signalpost/`.
+2. **Upload** `signalpost-central-1.2.0.zip`, then **Extract**. You get `/home/cpuser/signalpost/`.
 3. Permissions: directories `755`, files `644`; `signalpost/storage/` and its
    subfolders must be writable by PHP (usually `755` is enough under suPHP/
    PHP-FPM as your user; use `775` only if your host requires it).

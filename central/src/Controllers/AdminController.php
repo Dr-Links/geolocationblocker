@@ -76,6 +76,7 @@ final class AdminController extends Controller
         $input = $request->allInput();
         // Unchecked checkboxes are absent from form posts.
         $input['require_email_verification'] = isset($input['require_email_verification']);
+        $input['members_need_own_code'] = isset($input['members_need_own_code']);
         $changed = $this->app->get(PlatformSettings::class)->update($input);
         if ($changed !== []) {
             $this->app->get(AuditLog::class)->platform($admin['id'], 'platform.settings_changed', 'settings', '', ['changed' => $changed]);

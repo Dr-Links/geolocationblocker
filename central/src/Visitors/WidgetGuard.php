@@ -90,7 +90,7 @@ final class WidgetGuard
               WHERE w.public_key = ? AND w.status = 'connected' AND ws.status = 'active'",
             [$key]
         );
-        if ($site === null) {
+        if ($site === null || $this->app->get(\Signalpost\Licensing\AccessService::class)->widgetsOffline((int) $site['workspace_id'])) {
             throw new HttpException(404, 'chat_unavailable', 'Chat is not available right now.');
         }
         return $site;

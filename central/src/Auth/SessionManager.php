@@ -78,7 +78,7 @@ final class SessionManager
         }
         $db = $this->app->db();
         $row = $db->one(
-            'SELECT s.*, u.email, u.display_name, u.status AS user_status, u.is_platform_admin
+            'SELECT s.*, u.email, u.display_name, u.status AS user_status, u.is_platform_admin, u.access_expires_at
                FROM user_sessions s JOIN users u ON u.id = s.user_id
               WHERE s.token_hash = ?',
             [Tokens::hash($token)]
@@ -105,6 +105,7 @@ final class SessionManager
             'email' => $row['email'],
             'display_name' => $row['display_name'],
             'is_platform_admin' => (bool) $row['is_platform_admin'],
+            'access_expires_at' => $row['access_expires_at'],
         ];
         return [$row, $user];
     }

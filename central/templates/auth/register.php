@@ -5,6 +5,9 @@
   <?= $this->partial('partials/errors', ['errors' => $errors]) ?>
   <form method="post" action="/register" class="stack">
     <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
+    <?php if (!empty($needsCode)): ?>
+      <?= $this->partial('partials/field', ['name' => 'activation_code', 'label' => 'Activation code', 'value' => $old['activation_code'] ?? '', 'errors' => $errors, 'required' => true, 'max' => 40, 'autocomplete' => 'off', 'hint' => 'The code you received from the administrator, e.g. AC-XXXX-XXXX-XXXX. Each code creates one account.']) ?>
+    <?php endif; ?>
     <?= $this->partial('partials/field', ['name' => 'display_name', 'label' => 'Your name', 'value' => $old['display_name'] ?? '', 'errors' => $errors, 'required' => true, 'max' => 100, 'autocomplete' => 'name']) ?>
     <?= $this->partial('partials/field', ['name' => 'email', 'label' => 'Email', 'type' => 'email', 'value' => $old['email'] ?? '', 'errors' => $errors, 'required' => true, 'autocomplete' => 'email']) ?>
     <?= $this->partial('partials/field', ['name' => 'workspace_name', 'label' => 'Workspace name', 'value' => $old['workspace_name'] ?? '', 'errors' => $errors, 'required' => true, 'max' => 100, 'hint' => 'For example your company or project name.']) ?>

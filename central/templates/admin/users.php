@@ -3,12 +3,20 @@
 <section class="card">
   <form method="get" action="/admin/users" class="row-form"><div class="field grow"><label for="q">Search by email</label><input id="q" type="search" name="q" value="<?= $this->e($q) ?>"></div><button class="btn">Search</button></form>
   <div class="table-wrap"><table class="table">
-    <thead><tr><th>ID</th><th>Email</th><th>Name</th><th>Status</th><th>Workspaces</th><th>Created</th><th>Last sign-in</th><th></th></tr></thead>
+    <thead><tr><th>ID</th><th>Email</th><th>Name</th><th>Status</th><th>Workspaces</th><th>Created</th><th>Last sign-in</th><th>Access until</th><th></th></tr></thead>
     <tbody>
     <?php foreach ($users as $u): ?>
       <tr><td><?= (int) $u['id'] ?></td><td><?= $this->e($u['email']) ?><?= $u['is_platform_admin'] ? ' <span class="pill">platform owner</span>' : '' ?></td><td><?= $this->e($u['display_name']) ?></td>
         <td><span class="pill pill-<?= $this->e($u['status']) ?>"><?= $this->e($u['status']) ?></span></td><td><?= (int) $u['workspaces'] ?></td>
         <td><?= $this->time($u['created_at']) ?></td><td><?= $this->time($u['last_login_at']) ?><?= $u['totp_enabled_at'] ? ' <span class="pill pill-ok">2FA</span>' : '' ?></td>
+        <td><?php if ($u['is_platform_admin']): ?><span class="muted">no limit</span><?php elseif ($u['access_expires_at']): ?><?= $this->time($u['access_expires_at']) ?><?= strtotime($u['access_expires_at'] . ' UTC') <= time() ? ' <span class="pill pill-danger">expired</span>' : '' ?><?php else: ?><span class="muted">no limit</span><?php endif; ?>
+          <?php if (!$u['is_platform_admin']): ?>
+          <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/extend" class="inline-form" data-confirm="Extend this account's access without a code?">
+            <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
+            <label class="sr-only" for="ext-<?= (int) $u['id'] ?>">Extend by</label>
+            <select id="ext-<?= (int) $u['id'] ?>" name="months"><option value="1">+1 mo</option><option value="3">+3 mo</option><option value="6">+6 mo</option><option value="12">+1 yr</option></select>
+            <button class="btn btn-sm">Extend</button></form>
+          <?php endif; ?></td>
         <td><?php if ((int) $u['id'] !== (int) $user['id']): ?>
           <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status" data-confirm="<?= $u['status'] === 'suspended' ? 'Reactivate this account?' : 'Suspend this account? All of its sessions end immediately.' ?>">
             <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">

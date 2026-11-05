@@ -10,7 +10,7 @@
     <button class="btn btn-primary btn-block" type="submit">Sign in</button>
   </form>
   <p class="auth-links"><a href="/forgot-password">Forgot your password?</a>
-  <?php if ($registration === 'open'): ?> · <a href="/register">Create an account</a><?php endif; ?></p>
+  <?php if ($registration === 'open' || $registration === 'code'): ?> · <a href="/register"><?= $registration === 'code' ? 'Have an activation code? Create an account' : 'Create an account' ?></a><?php endif; ?></p>
   <?php if (!empty($unverified)): ?>
   <form method="post" action="/verify-email/resend" class="inline-form">
     <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">

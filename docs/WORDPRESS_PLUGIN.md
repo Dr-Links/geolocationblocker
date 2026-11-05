@@ -2,7 +2,7 @@
 
 * Slug: **`signalpost-connector`** · Main file: `signalpost-connector/signalpost-connector.php`
 * Requires WordPress 6.0+, PHP 7.4+. Tested with WordPress 6.8.3 (Twenty Twenty-Five theme) on PHP 8.3.
-* ZIP: `dist/signalpost-connector-1.1.0.zip`
+* ZIP: `dist/signalpost-connector-1.2.0.zip`
 
 ## Install
 

@@ -226,6 +226,40 @@ try {
   check('launcher hidden behind full-screen panel', await mobile.locator('#signalpost-chat .sp-launcher').isHidden());
   await mobile.screenshot({ path: 'artifacts/widget-mobile.png' });
 
+  // ---------------------------------------------------------------- activation codes
+  console.log('== Activation codes: generate, sign up, expire, renew');
+  await op.goto(`${CENTRAL_URL}/admin/codes`);
+  await op.selectOption('#c-dur', '1');
+  await op.fill('#c-note', 'E2E customer');
+  await op.click('button:has-text("Generate")');
+  const codes = (await op.textContent('pre.recovery-codes')).trim().split('\n');
+  check('admin sees the new code once', codes.length === 1 && /^AC-/.test(codes[0]));
+  await op.screenshot({ path: 'artifacts/admin-codes.png', fullPage: true });
+  sql("INSERT INTO platform_settings (name, value, updated_at) VALUES ('require_email_verification', 'false', NOW()) ON DUPLICATE KEY UPDATE value = 'false'");
+  const cctx = await browser.newContext();
+  const cust = await cctx.newPage();
+  await cust.goto(`${CENTRAL_URL}/register`);
+  await cust.fill('#f-activation_code', codes[0]);
+  await cust.fill('#f-display_name', 'Casey');
+  await cust.fill('#f-email', 'casey@example.test');
+  await cust.fill('#f-workspace_name', 'Casey Co');
+  await cust.fill('#f-password', 'casey-password-1');
+  await cust.fill('#f-password_confirm', 'casey-password-1');
+  await cust.click('button:has-text("Create account")');
+  await cust.waitForURL(/\/login/);
+  await cust.fill('#f-email', 'casey@example.test');
+  await cust.fill('#f-password', 'casey-password-1');
+  await cust.click('button[type=submit]');
+  await cust.waitForURL(/\/w\/\d+/);
+  check('customer signed up with the code and reached the dashboard', true);
+  sql("UPDATE users SET access_expires_at = DATE_SUB(UTC_TIMESTAMP(), INTERVAL 1 MINUTE) WHERE email = 'casey@example.test'");
+  await cust.reload();
+  check('expired customer is locked to the renewal page', cust.url().endsWith('/renew') && (await cust.textContent('main')).includes('Your access has ended'));
+  await cust.screenshot({ path: 'artifacts/renew.png' });
+  await cust.fill('#f-activation_code', codes[0]);
+  await cust.click('button:has-text("Activate")');
+  check('used code refused on renewal', (await cust.textContent('main')).includes('not valid or has already been used'));
+
   // ---------------------------------------------------------------- accessibility (axe-core)
   console.log('== Accessibility audit (axe-core, serious/critical only)');
   // The dashboard's CSP (correctly) blocks injected scripts; the audit context bypasses it.
@@ -237,12 +271,14 @@ try {
   await a11y.fill('#f-password', 'integration-pass-1');
   await a11y.click('button[type=submit]');
   await a11y.waitForURL(/\/w\/\d+/);
-  for (const path of ['', '/inbox', '/live', '/visitors', '/websites', '/members', '/privacy', '/../../account']) {
+  for (const path of ['', '/inbox', '/live', '/visitors', '/websites', '/members', '/privacy', '/../../account', '/../../admin/codes']) {
     await a11y.goto(`${CENTRAL_URL}/w/${WS_ID}${path}`);
     await a11y.waitForTimeout(800);
     v = await axe(a11y);
     check(`dashboard ${path || '/overview'}: no serious a11y violations`, v.length === 0, v.join('; '));
   }
+  v = await (async () => { const p = await (await browser.newContext({ bypassCSP: true })).newPage(); await p.goto(`${CENTRAL_URL}/register`); return axe(p); })();
+  check('register page (with code field): no serious a11y violations', v.length === 0, v.join('; '));
   await mobile.setViewportSize({ width: 1280, height: 800 });
   v = await axe(mobile, '#signalpost-chat');
   check('open widget: no serious a11y violations', v.length === 0, v.join('; '));

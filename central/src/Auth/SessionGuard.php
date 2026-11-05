@@ -43,6 +43,15 @@ final class SessionGuard
             throw HttpException::unauthorized();
         }
 
+        // Expired time-limited access: the account may only renew or sign out.
+        if ($loaded !== null && $guard === 'session' && !in_array($request->path, ['/renew', '/logout'], true)
+            && $this->app->get(\Signalpost\Licensing\AccessService::class)->isExpired($loaded[1])) {
+            if ($request->wantsJson()) {
+                throw new HttpException(403, 'access_expired', 'Your access has expired. Enter a new activation code to continue.');
+            }
+            throw new AccessExpired();
+        }
+
         $writes = !in_array($request->method, ['GET', 'HEAD'], true);
         if (!$writes) {
             $this->ensureGuestCsrfCookie($request);

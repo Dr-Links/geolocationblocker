@@ -36,6 +36,9 @@ and milestone criteria are in [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATIO
   messages (standard Web Push via the browser's own push service; no paid service or SDK), offline page, and a
   service worker that never caches private data.
 * Optional **two-factor authentication** (TOTP + recovery codes) and SMTP email.
+* **Activation codes**: the platform owner issues single-use codes (1, 3, 6 or
+  12 months); accounts lock at the end of the period and are renewed with a new
+  code on the same account.
 * Ready-made package and guide for **alllivechats.com on Hostinger**.
 
 ## Documentation

@@ -1,7 +1,7 @@
 # Deploying to alllivechats.com on Hostinger (hPanel)
 
 This installs the chat platform at **https://alllivechats.com** using
-`dist/alllivechats-hostinger-1.1.0.zip`. It takes about 20 minutes and needs
+`dist/alllivechats-hostinger-1.2.0.zip`. It takes about 20 minutes and needs
 no SSH. Nothing here has been run on your account yet. Take a backup first
 (hPanel → **Websites → Manage → Files → Backups**) if anything already lives
 on the domain.
@@ -37,7 +37,7 @@ hPanel → **Files → File Manager**, open `domains/alllivechats.com/`.
 
 1. Inside `public_html/`, delete Hostinger's placeholder files (`default.php`,
    `index.html`) if present. Keep anything you deliberately put there.
-2. Back in `domains/alllivechats.com/`, **Upload** `alllivechats-hostinger-1.1.0.zip`.
+2. Back in `domains/alllivechats.com/`, **Upload** `alllivechats-hostinger-1.2.0.zip`.
 3. Right-click it → **Extract** into the current folder.
 
 You now have:
@@ -114,14 +114,34 @@ For each WordPress site:
 1. Dashboard → **Websites & widget → Add a WordPress website** with the site's
    exact address (e.g. `https://www.example.com`) → **Generate pairing code**.
 2. In that WordPress site: **Plugins → Add New → Upload Plugin** →
-   `signalpost-connector-1.1.0.zip` → Install → Activate.
+   `signalpost-connector-1.2.0.zip` → Install → Activate.
 3. **Settings → Signalpost Chat**: server address `https://alllivechats.com`,
    paste the pairing code → **Connect**.
 
-## 11. Registration for other people
+## 11. Activation codes (who can sign up, and for how long)
 
-**Platform admin → Settings → Registration**: `Invitation only` (default),
-`Open` (anyone can sign up for their own private workspace) or `Closed`.
+Registration defaults to **Activation code**: people can create an account only
+with a single-use code you generate.
+
+* **Platform admin → Activation codes**: choose 1 month, 3 months, 6 months or
+  1 year, how many codes, and a note (who it's for) → **Generate**. Copy the
+  codes immediately — they are shown once. Send each person their code and the
+  sign-up link `https://alllivechats.com/register`.
+* One code creates exactly one account. The access period starts at sign-up.
+* When the period ends, the account is signed out and can only open the
+  renewal page. Entering a **new** code reopens the **same** account (all data
+  kept). Renewing early adds the time to the end of the current period.
+* The list shows each code's status (unused / used / revoked), who used it,
+  and until when that account has access. Unused codes can be revoked.
+* **Platform admin → Accounts → Extend** adds time without a code (audited).
+* Settings (Platform admin → Settings): whether invited team members need
+  their own code (default: they share the workspace owner's period), whether
+  chat widgets go offline while an owner is expired (default: offline; data is
+  kept), and the reminder email lead time (default 7 days).
+* Your platform owner account never expires and needs no code.
+
+Other registration modes: `Invitation only`, `Open` (anyone, no time limit)
+or `Closed`.
 
 ## Updating later
 

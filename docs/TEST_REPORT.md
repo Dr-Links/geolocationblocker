@@ -1,6 +1,6 @@
 # Signalpost — Test Report and Known Limitations
 
-Date: 2026-11-05 · Version: central 1.1.0, connector 1.1.0 (adds PWA, push notifications, two-factor authentication, SMTP, Hostinger package)
+Date: 2026-11-05 · Version: central 1.2.0, connector 1.2.0 (1.1: PWA, push, 2FA, SMTP, Hostinger package; 1.2: activation codes and time-limited access)
 
 ## Environment actually used
 
@@ -20,9 +20,9 @@ server.
 
 | Suite | Command | Result |
 |---|---|---|
-| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **137 passed, 0 failed** (1166 assertions) |
+| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **148 passed, 0 failed** (1274 assertions) |
 | WordPress connector integration (real WordPress) | `tests/integration/wordpress-connector.sh` | **28 passed, 0 failed** |
-| Browser end-to-end (WP admin + visitor + operator + PWA + axe) | `tests/e2e/run.sh` | **57 passed, 0 failed** |
+| Browser end-to-end (WP admin + visitor + operator + PWA + activation codes + axe) | `tests/e2e/run.sh` | **63 passed, 0 failed** |
 | Clean install from the built ZIPs (cPanel layout) | `tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
 | Clean install, Hostinger layout with the alllivechats.com config template | `LAYOUT=hostinger tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
 | Package build and verification | `build/build.sh` | passed (contents, lint, no secrets, version consistency) |
@@ -88,6 +88,15 @@ server.
 **Two-factor authentication and SMTP (1.1.0)** — `TwoFactorAndMailTest`
 * TOTP codes match RFC 6238 Appendix B vectors (checked during development); secret encrypted at rest; recovery codes hashed and single-use; password alone creates no session; replay rejected; pending sign-in expires after 5 minutes; 5-attempt throttle; disabling needs password + code; admin reset audited ✔
 * SMTP: AUTH LOGIN, envelope, encoded subject, dot-stuffing and base64 body against a scripted local SMTP server; failures return false without logging the password ✔
+
+**Activation codes (1.2.0)** — `ActivationCodeTest` + E2E
+* Codes shown once, stored hashed; only 1/3/6/12 months; admin-only ✔
+* Sign-up requires a valid code; one code = one account, a second use fails with no account created; redemption is atomic ✔
+* Invalid code rejected identically for existing and new emails; a valid code is not consumed for an existing email ✔
+* Expiry locks the account to `/renew` (HTML) / `403 access_expired` (API); a new code reopens the same account; early renewal extends from the current end ✔
+* Cron signs expired accounts out once and audits it; one reminder email per period ✔
+* Members inherit the owner's period; widgets go offline while the owner is expired (or stay online if configured); access returns on renewal ✔
+* Platform owner never expires; revoked codes unusable; used codes can't be revoked; 10 wrong codes per network per hour; optional own codes for invited members; admin extension audited ✔
 
 **Accessibility** — axe-core (serious/critical rules) on login, overview, inbox, live, visitors, websites, members, privacy and the open widget: no violations after fixes. Keyboard: Escape closes the widget and returns focus to the launcher.
 

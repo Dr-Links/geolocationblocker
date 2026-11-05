@@ -30,7 +30,7 @@ final class AdminService
         }
         $offset = (max(1, $page) - 1) * 50;
         return $this->app->db()->all(
-            "SELECT u.id, u.email, u.display_name, u.status, u.is_platform_admin, u.created_at, u.last_login_at, u.totp_enabled_at,
+            "SELECT u.id, u.email, u.display_name, u.status, u.is_platform_admin, u.created_at, u.last_login_at, u.totp_enabled_at, u.access_expires_at,
                     (SELECT COUNT(*) FROM workspace_members m WHERE m.user_id = u.id AND m.status = 'active') AS workspaces
                FROM users u WHERE {$where} ORDER BY u.id LIMIT 50 OFFSET {$offset}",
             $params

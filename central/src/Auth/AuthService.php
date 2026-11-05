@@ -45,13 +45,26 @@ final class AuthService
         });
     }
 
-    public function register(string $email, string $password, string $name, string $workspaceName, Request $request): array
+    public function register(string $email, string $password, string $name, string $workspaceName, Request $request, ?string $activationCode = null): array
     {
         $settings = $this->app->get(PlatformSettings::class);
-        if ($settings->get('registration_mode') !== 'open') {
+        $mode = $settings->get('registration_mode');
+        if (!in_array($mode, ['open', 'code'], true)) {
             throw HttpException::forbidden('Registration is not open.');
         }
-        $this->app->get(RateLimiter::class)->enforce('register:ip:' . $this->app->clientIp($request), 5, 3600);
+        $access = $this->app->get(\Signalpost\Licensing\AccessService::class);
+        $ip = $this->app->clientIp($request);
+        if ($mode === 'code') {
+            if ($this->app->get(RateLimiter::class)->count('activation:ip:' . $ip, 3600) >= 10) {
+                throw new HttpException(429, 'rate_limited', 'Too many code attempts. Please try again later.');
+            }
+            // Checked before the email lookup so an invalid code reveals nothing about existing accounts.
+            if ($activationCode === null || !$access->isUsable($activationCode)) {
+                $this->app->get(RateLimiter::class)->hit('activation:ip:' . $ip, PHP_INT_MAX, 3600);
+                throw HttpException::validation(['activation_code' => 'This activation code is not valid or has already been used.']);
+            }
+        }
+        $this->app->get(RateLimiter::class)->enforce('register:ip:' . $ip, 5, 3600);
         $this->assertPassword($password, $email);
         $db = $this->app->db();
         if ($db->value('SELECT id FROM users WHERE email = ?', [$email]) !== null) {
@@ -61,8 +74,12 @@ final class AuthService
             return ['user_id' => null, 'needs_verification' => true];
         }
         $verify = (bool) $settings->get('require_email_verification');
-        $userId = $db->transaction(function () use ($email, $password, $name, $workspaceName, $verify): int {
+        $userId = $db->transaction(function () use ($email, $password, $name, $workspaceName, $verify, $mode, $activationCode, $access, $ip): int {
             $id = $this->insertUser($email, $password, $name, $verify ? 'unverified' : 'active', !$verify, false);
+            if ($mode === 'code') {
+                // Consumed under a row lock; a code used concurrently fails here and rolls back the account.
+                $access->redeem($id, (string) $activationCode, 'signup', $ip);
+            }
             $this->app->get(WorkspaceService::class)->create($id, $workspaceName);
             return $id;
         });

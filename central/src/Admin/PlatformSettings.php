@@ -13,8 +13,14 @@ use Signalpost\Core\App;
 final class PlatformSettings
 {
     public const SCHEMA = [
-        // closed: nobody may self-register; invite_only: only via workspace invitations; open: anyone.
-        'registration_mode' => ['type' => 'enum', 'values' => ['closed', 'invite_only', 'open'], 'default' => 'invite_only'],
+        // closed: nobody may self-register; invite_only: only via workspace invitations;
+        // code: self-registration with a single-use activation code issued by the platform owner; open: anyone.
+        'registration_mode' => ['type' => 'enum', 'values' => ['closed', 'invite_only', 'code', 'open'], 'default' => 'code'],
+        // Invited workspace members need their own activation code (otherwise they inherit the owner's access).
+        'members_need_own_code' => ['type' => 'bool', 'default' => false],
+        // What customers' chat widgets do while the workspace owner's access has expired.
+        'expired_owner_widgets' => ['type' => 'enum', 'values' => ['offline', 'keep'], 'default' => 'offline'],
+        'access_reminder_days' => ['type' => 'int', 'min' => 0, 'max' => 30, 'default' => 7],
         'require_email_verification' => ['type' => 'bool', 'default' => true],
         'max_workspaces_per_user' => ['type' => 'int', 'min' => 1, 'max' => 100, 'default' => 3],
         'max_websites_per_workspace' => ['type' => 'int', 'min' => 1, 'max' => 500, 'default' => 10],

@@ -15,7 +15,7 @@ if (PHP_VERSION_ID < 80100) {
 }
 
 define('SIGNALPOST_ROOT', __DIR__);
-define('SIGNALPOST_VERSION', '1.1.0');
+define('SIGNALPOST_VERSION', '1.2.0');
 
 spl_autoload_register(static function (string $class): void {
     $prefix = 'Signalpost\\';

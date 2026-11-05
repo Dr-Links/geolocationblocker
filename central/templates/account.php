@@ -36,6 +36,13 @@
   </table></div>
 </section>
 
+<section class="card" id="access">
+  <h2>Access</h2>
+  <?php if (!empty($user['is_platform_admin'])): ?><p>Platform owner — no time limit.</p>
+  <?php elseif (!empty($user['access_expires_at'])): ?><p>Your access runs until <strong><?= $this->time($user['access_expires_at']) ?></strong>. <a href="/renew">Enter a new activation code</a> to extend it.</p>
+  <?php else: ?><p>Your account has no time limit<?= '' ?>. If you belong to someone else's workspace, it follows that workspace owner's access.</p><?php endif; ?>
+</section>
+
 <section class="card" id="notifications" data-push data-csrf="<?= $this->e($csrf) ?>">
   <h2>App and notifications</h2>
   <p class="muted">Install <?= $this->e($this->appName()) ?> on your phone or computer (browser menu → “Install app” / “Add to Home Screen”) and get notified when visitors write. On iPhone and iPad, add it to the Home Screen first (iOS 16.4 or later), then enable notifications from the installed app.</p>

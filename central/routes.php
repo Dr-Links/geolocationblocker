@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use Signalpost\Controllers\AccessController;
 use Signalpost\Controllers\AccountController;
 use Signalpost\Controllers\AdminController;
 use Signalpost\Controllers\AuthController;
@@ -66,6 +67,8 @@ return static function (Router $r): void {
     $r->get('/', [DashboardController::class, 'home'], 'session');
     $r->get('/workspaces/new', [DashboardController::class, 'newWorkspace'], 'session');
     $r->post('/workspaces', [DashboardController::class, 'createWorkspace'], 'session');
+    $r->get('/renew', [AccessController::class, 'renewForm'], 'session');
+    $r->post('/renew', [AccessController::class, 'renew'], 'session');
     $r->get('/account', [AccountController::class, 'show'], 'session');
     $r->post('/account/profile', [AccountController::class, 'updateProfile'], 'session');
     $r->post('/account/password', [AccountController::class, 'changePassword'], 'session');
@@ -149,6 +152,10 @@ return static function (Router $r): void {
     $r->get('/admin/users', [AdminController::class, 'users'], 'session');
     $r->post('/admin/users/{id}/status', [AdminController::class, 'setUserStatus'], 'session');
     $r->post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor'], 'session');
+    $r->get('/admin/codes', [AccessController::class, 'codes'], 'session');
+    $r->post('/admin/codes', [AccessController::class, 'generate'], 'session');
+    $r->post('/admin/codes/{id}/revoke', [AccessController::class, 'revoke'], 'session');
+    $r->post('/admin/users/{id}/extend', [AccessController::class, 'extend'], 'session');
     $r->get('/admin/workspaces', [AdminController::class, 'workspaces'], 'session');
     $r->post('/admin/workspaces/{id}/status', [AdminController::class, 'setWorkspaceStatus'], 'session');
     $r->get('/admin/settings', [AdminController::class, 'settings'], 'session');

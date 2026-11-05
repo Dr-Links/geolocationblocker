@@ -99,10 +99,10 @@ final class AuthController extends Controller
 
     public function registerForm(Request $request): Response
     {
-        if ($this->registrationMode() !== 'open') {
+        if (!in_array($this->registrationMode(), ['open', 'code'], true)) {
             return $this->page($request, 'auth/registration_closed', ['title' => 'Registration'], 'layout_plain', 403);
         }
-        return $this->page($request, 'auth/register', ['title' => 'Create account', 'old' => [], 'errors' => []], 'layout_plain');
+        return $this->page($request, 'auth/register', ['title' => 'Create account', 'old' => ['activation_code' => $request->queryString('code')], 'errors' => [], 'needsCode' => $this->registrationMode() === 'code'], 'layout_plain');
     }
 
     public function register(Request $request): Response
@@ -118,13 +118,14 @@ final class AuthController extends Controller
             if (($input['password'] ?? '') !== ($input['password_confirm'] ?? null)) {
                 throw HttpException::validation(['password_confirm' => 'Passwords do not match.']);
             }
-            $result = $this->app->get(AuthService::class)->register($data['email'], (string) $input['password'], $data['display_name'], $data['workspace_name'], $request);
+            $code = is_string($input['activation_code'] ?? null) ? mb_substr($input['activation_code'], 0, 40) : null;
+            $result = $this->app->get(AuthService::class)->register($data['email'], (string) $input['password'], $data['display_name'], $data['workspace_name'], $request, $code);
             if (!$result['needs_verification'] && $result['user_id'] !== null) {
                 return Response::redirect('/login?ok=verified');
             }
             return Response::redirect('/login?ok=check_email');
         }, fn (array $errors, int $status) => $this->page($request, 'auth/register', [
-            'title' => 'Create account', 'old' => $input, 'errors' => $errors,
+            'title' => 'Create account', 'old' => $input, 'errors' => $errors, 'needsCode' => $this->registrationMode() === 'code',
         ], 'layout_plain', $status));
     }
 
@@ -198,6 +199,7 @@ final class AuthController extends Controller
         $existing = $this->app->db()->value('SELECT id FROM users WHERE email = ?', [$inv['email']]) !== null;
         return $this->page($request, 'auth/invite', [
             'title' => 'Join workspace', 'inv' => $inv, 'token' => $token, 'existing' => $existing, 'errors' => [],
+            'needsCode' => (bool) $this->app->get(PlatformSettings::class)->get('members_need_own_code'),
         ], 'layout_plain');
     }
 
@@ -224,9 +226,15 @@ final class AuthController extends Controller
                 if ($request->input('password') !== $request->input('password_confirm')) {
                     throw HttpException::validation(['password_confirm' => 'Passwords do not match.']);
                 }
-                $userId = $this->app->get(AuthService::class)->createInvitedUser($inv['email'], (string) $request->input('password'), $data['display_name']);
+                $needsCode = (bool) $this->app->get(PlatformSettings::class)->get('members_need_own_code');
+                [$userId, $wsId] = $this->app->db()->transaction(function () use ($request, $inv, $data, $token, $workspaces, $needsCode) {
+                    $userId = $this->app->get(AuthService::class)->createInvitedUser($inv['email'], (string) $request->input('password'), $data['display_name']);
+                    if ($needsCode) {
+                        $this->app->get(\Signalpost\Licensing\AccessService::class)->redeem($userId, (string) $request->input('activation_code', ''), 'signup', $this->app->clientIp($request));
+                    }
+                    return [$userId, $workspaces->acceptInvitation($token, ['id' => $userId, 'email' => $inv['email']])];
+                });
                 $user = ['id' => $userId, 'email' => $inv['email']];
-                $wsId = $workspaces->acceptInvitation($token, $user);
                 if ($this->app->db()->value('SELECT status FROM users WHERE id = ?', [$userId]) !== 'active') {
                     return Response::redirect('/login?ok=check_email');
                 }
@@ -240,6 +248,7 @@ final class AuthController extends Controller
             return Response::redirect('/w/' . $wsId . '?ok=joined');
         }, fn (array $errors, int $status) => $this->page($request, 'auth/invite', [
             'title' => 'Join workspace', 'inv' => $inv, 'token' => $token, 'existing' => $existing, 'errors' => $errors,
+            'needsCode' => (bool) $this->app->get(PlatformSettings::class)->get('members_need_own_code'),
         ], 'layout_plain', $status));
     }
 

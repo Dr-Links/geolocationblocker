@@ -119,6 +119,8 @@ TXT;
             echo "Another cron run is in progress.\n";
             return 0;
         }
+        $access = $this->app->get(\Signalpost\Licensing\AccessService::class)->enforce();
+        echo 'Access: ' . json_encode($access) . "\n";
         $report = $this->app->get(\Signalpost\Privacy\RetentionService::class)->run(false);
         $this->app->get(\Signalpost\Admin\PlatformSettings::class)->setState('last_cron_run', $this->app->clock->sql());
         $this->app->logger()->info('cron run', ['totals' => $report['totals'], 'complete' => $report['complete']]);

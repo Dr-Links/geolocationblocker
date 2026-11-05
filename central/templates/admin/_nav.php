@@ -1,6 +1,6 @@
 <?php /** @var \Signalpost\Core\View $this */ ?>
 <nav class="tabs" aria-label="Platform administration">
-  <?php foreach (['/admin' => 'Health', '/admin/users' => 'Accounts', '/admin/workspaces' => 'Workspaces', '/admin/settings' => 'Settings', '/admin/audit' => 'Audit & security'] as $href => $label): ?>
+  <?php foreach (['/admin' => 'Health', '/admin/users' => 'Accounts', '/admin/workspaces' => 'Workspaces', '/admin/codes' => 'Activation codes', '/admin/settings' => 'Settings', '/admin/audit' => 'Audit & security'] as $href => $label): ?>
     <a href="<?= $href ?>" class="tab<?= $path === $href ? ' active' : '' ?>"<?= $path === $href ? ' aria-current="page"' : '' ?>><?= $label ?></a>
   <?php endforeach; ?>
 </nav>

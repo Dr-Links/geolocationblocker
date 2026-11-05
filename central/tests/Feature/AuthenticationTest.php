@@ -167,8 +167,9 @@ final class AuthenticationTest extends TestCase
 
     public function testRegistrationRespectsPlatformMode(): void
     {
+        $this->app->get(PlatformSettings::class)->update(['registration_mode' => 'invite_only']);
         $b = $this->client();
-        $this->assertSame(403, $b->get('/register')->status, 'default mode is invite_only');
+        $this->assertSame(403, $b->get('/register')->status, 'invite_only mode');
         $b->get('/login');
         $form = ['_csrf' => $b->cookies['sp_csrf'], 'email' => 'new@example.com', 'display_name' => 'New', 'workspace_name' => 'NewCo',
             'password' => 'brand-new-pass-1', 'password_confirm' => 'brand-new-pass-1'];

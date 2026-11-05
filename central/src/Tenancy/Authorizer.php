@@ -50,6 +50,10 @@ final class Authorizer
             [$workspaceId, $userId]
         );
         if ($row !== null && in_array($row['role'], Roles::ASSIGNABLE, true)) {
+            // Members inherit the primary owner's access period.
+            if ((int) $row['owner_user_id'] !== $userId && $this->app->get(\Signalpost\Licensing\AccessService::class)->workspaceLocked($workspaceId)) {
+                throw new HttpException(403, 'workspace_access_expired', "This workspace's access has expired. Its owner needs to renew it with a new activation code.");
+            }
             return new WorkspaceContext((int) $row['id'], $row['name'], $userId, $row['role'], (int) $row['owner_user_id']);
         }
         if ($isAdmin) {

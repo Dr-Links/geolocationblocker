@@ -195,7 +195,7 @@ final class TenancyTest extends TestCase
             $this->assertSame(404, $bob->get($p)->status, $p);
         }
         $this->assertSame(404, $bob->submit('/admin/settings', ['registration_mode' => 'open'])->status);
-        $this->assertSame('invite_only', $this->app->get(PlatformSettings::class)->get('registration_mode'));
+        $this->assertSame('code', $this->app->get(PlatformSettings::class)->get('registration_mode'), 'unchanged default');
     }
 
     public function testPlatformAdminHasNoImplicitWorkspaceAccessButSupportGrantGivesAuditedReadOnly(): void

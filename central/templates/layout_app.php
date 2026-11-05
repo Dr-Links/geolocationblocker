@@ -93,6 +93,11 @@ $nav = static function (string $href, string $label, string $icon, string $curre
       <?php endif; ?>
     </header>
     <main id="main" class="content" tabindex="-1">
+      <?php
+      $expiresAt = $user['access_expires_at'] ?? null;
+      if ($expiresAt && empty($user['is_platform_admin']) && strtotime($expiresAt . ' UTC') - time() < 7 * 86400): ?>
+        <div class="notice notice-warn" role="status">Your access ends <?= $this->time($expiresAt) ?>. <a href="/renew">Renew with a new activation code</a> to avoid interruption.</div>
+      <?php endif; ?>
       <?php if (!empty($notice)): ?>
         <div class="notice notice-ok" role="status"><?= $this->e($notice) ?></div>
       <?php endif; ?>

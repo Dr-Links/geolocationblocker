@@ -14,6 +14,9 @@
   <?php else: ?>
     <form method="post" action="/invite/<?= $this->e($token) ?>" class="stack">
       <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
+      <?php if (!empty($needsCode)): ?>
+        <?= $this->partial('partials/field', ['name' => 'activation_code', 'label' => 'Activation code', 'errors' => $errors, 'required' => true, 'max' => 40, 'autocomplete' => 'off', 'hint' => 'New accounts need their own activation code from the administrator.']) ?>
+      <?php endif; ?>
       <?= $this->partial('partials/field', ['name' => 'display_name', 'label' => 'Your name', 'errors' => $errors, 'required' => true, 'max' => 100, 'autocomplete' => 'name']) ?>
       <?= $this->partial('partials/field', ['name' => 'password', 'label' => 'Choose a password', 'type' => 'password', 'errors' => $errors, 'required' => true, 'autocomplete' => 'new-password']) ?>
       <?= $this->partial('partials/field', ['name' => 'password_confirm', 'label' => 'Confirm password', 'type' => 'password', 'errors' => $errors, 'required' => true, 'autocomplete' => 'new-password']) ?>

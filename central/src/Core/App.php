@@ -181,6 +181,9 @@ final class App
 
     private function errorResponse(Request $request, HttpException $e): Response
     {
+        if ($e instanceof \Signalpost\Auth\AccessExpired && !$request->wantsJson()) {
+            return Response::redirect('/renew');
+        }
         if ($request->wantsJson()) {
             $response = Response::jsonError($e->status, $e->errorCode, $e->getMessage(), $e->details);
         } elseif ($e->status === 401) {
