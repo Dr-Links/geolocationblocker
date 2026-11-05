@@ -44,6 +44,9 @@ return static function (Router $r): void {
     // Installation (only while no user exists).
     $r->get('/install', [InstallController::class, 'show']);
     $r->post('/install', [InstallController::class, 'submit']);
+    // Web update (only while migrations are pending; token from storage/upgrade-token.txt).
+    $r->get('/upgrade', [\Signalpost\Controllers\UpgradeController::class, 'show']);
+    $r->post('/upgrade', [\Signalpost\Controllers\UpgradeController::class, 'run']);
 
     // Authentication.
     $r->get('/login', [AuthController::class, 'loginForm'], 'guest');

@@ -35,6 +35,7 @@ abstract class Controller
         'logged_out' => 'You have been signed out.',
         'installed' => 'Installation complete. Sign in with the owner account you created.',
         'renewed' => 'Your access has been renewed. Thank you!',
+        'upgraded' => 'Update complete. Please sign in.',
     ];
 
     public function __construct(protected readonly App $app)

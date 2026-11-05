@@ -166,8 +166,9 @@ See docs/CRON.md. Summary (cPanel → **Cron Jobs**, every 15 minutes):
    installation into `signalpost-new/`.
 4. Rename `signalpost/` → `signalpost-old/` and `signalpost-new/` →
    `signalpost/` (the subdomain document root stays `signalpost/public`).
-5. Apply migrations: **Platform admin → Health → Run now** (shown when
-   migrations are pending), or `php bin/console migrate`.
+5. Apply migrations: open the site — while migrations are pending you are sent
+   to `/upgrade`, which asks for the one-time token in
+   `storage/upgrade-token.txt` (like the installer) — or run `php bin/console migrate`.
 6. Check **Health**, test a chat, then delete `signalpost-old/` after a few days.
 
 Rollback: restore `signalpost-old/` and the database backup taken in step 1.

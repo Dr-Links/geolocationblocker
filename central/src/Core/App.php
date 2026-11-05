@@ -108,6 +108,13 @@ final class App
         } catch (HttpException $e) {
             $response = $this->errorResponse($request, $e);
         } catch (\PDOException $e) {
+            // Code uploaded over an installed site whose database is behind: send people to /upgrade.
+            $state = $e->errorInfo[0] ?? $e->getCode();
+            if (in_array($state, ['42S22', '42S02'], true) && $request->path !== '/upgrade' && $request->path !== '/install' && $this->upgradePending()) {
+                return $this->applySecurityHeaders($request, str_starts_with($request->path, '/api/')
+                    ? Response::jsonError(503, 'upgrade_required', 'This server is being updated. Please try again shortly.')
+                    : Response::redirect('/upgrade'));
+            }
             // Fresh installation: the schema does not exist yet. Send people to the installer.
             if (($e->errorInfo[0] ?? $e->getCode()) === '42S02' && $request->method === 'GET'
                 && !str_starts_with($request->path, '/api/') && $request->path !== '/install') {
@@ -121,6 +128,16 @@ final class App
             $response = $this->unhandled($request, $e);
         }
         return $this->applySecurityHeaders($request, $response);
+    }
+
+    /** True when the site is installed (has users) but migrations are pending. */
+    private function upgradePending(): bool
+    {
+        try {
+            return $this->migrator()->pending() !== [] && (int) $this->db()->value('SELECT COUNT(*) FROM users') > 0;
+        } catch (\PDOException) {
+            return false;
+        }
     }
 
     private function unhandled(Request $request, \Throwable $e): Response

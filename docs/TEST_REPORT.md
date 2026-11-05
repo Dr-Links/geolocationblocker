@@ -20,7 +20,7 @@ server.
 
 | Suite | Command | Result |
 |---|---|---|
-| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **148 passed, 0 failed** (1274 assertions) |
+| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **150 passed, 0 failed** (1300 assertions) |
 | WordPress connector integration (real WordPress) | `tests/integration/wordpress-connector.sh` | **28 passed, 0 failed** |
 | Browser end-to-end (WP admin + visitor + operator + PWA + activation codes + axe) | `tests/e2e/run.sh` | **63 passed, 0 failed** |
 | Clean install from the built ZIPs (cPanel layout) | `tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
@@ -115,6 +115,7 @@ server.
 | Security review | Support could write read markers; superseded credential could disconnect | New `conversations.mark_read` permission; grace check on disconnect |
 | Security review | Blocked visitors could still post consent/analytics | Denied |
 | axe-core | Insufficient colour contrast (muted text, pills, widget footer) | Darker text tokens |
+| Upgrade simulation (1.2.0) | Uploading 1.2 over a 1.1 install made every signed-in page fail (new column queried before its migration), so the admin's “Run now” button was unreachable | Secure `/upgrade` page with a one-time file token; schema-behind requests redirect there; regression test |
 | 2FA tests (1.1.0) | Account page merged view variables with `+`, so the generated secret was discarded and 2FA setup could never complete | `array_replace`; covered by tests |
 
 Several of my own test assertions were also found to be wrong or vacuous

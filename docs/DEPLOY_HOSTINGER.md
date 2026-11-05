@@ -143,14 +143,24 @@ with a single-use code you generate.
 Other registration modes: `Invitation only`, `Open` (anyone, no time limit)
 or `Closed`.
 
-## Updating later
+## Updating later (site already installed)
 
-1. Back up (hPanel backups + **Databases → phpMyAdmin → Export**).
-2. Upload the new `alllivechats-hostinger-<version>.zip` to
-   `domains/alllivechats.com/` and extract it, choosing to overwrite. Your
-   `signalpost/config/config.php` and `signalpost/storage/` are not in the ZIP,
-   so they are kept.
-3. **Platform admin → Health → Run now** if migrations are pending.
+1. Back up: hPanel → **Databases → phpMyAdmin** → select the database →
+   **Export** (Quick, SQL), plus hPanel → Files → **Backups** if you like.
+2. File Manager → `domains/alllivechats.com/` → upload the new
+   `alllivechats-hostinger-<version>.zip` → **Extract**, choosing to
+   **overwrite**. `signalpost/config/config.php` and your `signalpost/storage/`
+   data are not in the ZIP, so they are kept. Delete the ZIP.
+3. Open https://alllivechats.com. If the update includes database changes,
+   you are sent to **/upgrade** (signed-in pages and the dashboard API pause
+   until it's done). Open `signalpost/storage/upgrade-token.txt` in File
+   Manager, paste its contents, and click **Apply update**. The token file is
+   deleted and the page disables itself.
+4. Sign in again and check **Platform admin → Health** (no pending migrations).
+
+Alternative with SSH: `php ~/domains/alllivechats.com/signalpost/bin/console migrate`.
+Accounts that existed before activation codes keep working with no time limit;
+use **Platform admin → Accounts → Extend** if you want to put one on a limit.
 
 ## If something goes wrong
 
