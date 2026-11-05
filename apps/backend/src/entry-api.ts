@@ -1,12 +1,16 @@
 import { buildUserApi } from './app.js';
 import { loadConfig } from './lib/config.js';
-import { loadEnvFile } from './lib/envfile.js';
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { appRoot, loadEnvFile } from './lib/envfile.js';
 import { createPool } from './lib/db.js';
 import { TokenSigner } from './lib/jwt.js';
 import { createMailer } from './lib/mailer.js';
 
 loadEnvFile();
 const cfg = loadConfig();
+// The deployment package ships the web app (PWA) in <appRoot>/web.
+if (!cfg.webAppDir && existsSync(join(appRoot, 'web', 'index.html'))) cfg.webAppDir = join(appRoot, 'web');
 const app = await buildUserApi({
   cfg,
   db: { auth: createPool(cfg, 'auth'), api: createPool(cfg, 'api') },

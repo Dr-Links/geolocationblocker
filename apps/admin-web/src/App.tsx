@@ -46,7 +46,7 @@ export function App() {
   return (
     <div className="layout">
       <header className="topbar">
-        <strong className="brand">Email Platform · Admin</strong>
+        <strong className="brand">AllWebMails · Admin</strong>
         <nav>{nav('/', 'Dashboard')}{nav('/users', 'Users')}{nav('/blocklist', 'Blocklist')}{nav('/audit', 'Audit log')}{nav('/settings', 'Settings')}</nav>
         <span className="who">{me.email}
           <button className="linklike" onClick={async () => { await api.post('/auth/logout').catch(() => undefined); setMe(null); navigate('/'); }}>Sign out</button>

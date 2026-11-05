@@ -14,3 +14,5 @@ coverage/
 deploy/server/secrets/*
 !deploy/server/secrets/README.txt
 deploy/server/.env
+deploy/hostinger/out/
+apps/mobile/dist-web/
