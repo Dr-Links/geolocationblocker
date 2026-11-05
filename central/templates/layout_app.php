@@ -14,7 +14,8 @@ $nav = static function (string $href, string $label, string $icon, string $curre
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<title><?= $this->e($title ?? 'Dashboard') ?> · Signalpost</title>
+<title><?= $this->e($title ?? 'Dashboard') ?> · <?= $this->e($this->appName()) ?></title>
+<?= $this->pwaHead() ?>
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body class="app">
@@ -22,7 +23,7 @@ $nav = static function (string $href, string $label, string $icon, string $curre
 <div class="shell">
   <aside class="sidebar" id="sidebar" aria-label="Primary">
     <div class="sidebar-head">
-      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span>Signalpost</a>
+      <a class="brand" href="/"><span class="brand-mark" aria-hidden="true"></span><?= $this->e($this->appName()) ?></a>
     </div>
     <?php if ($workspaces): ?>
     <form class="ws-switch" method="get" action="/" data-ws-switch>
@@ -62,6 +63,7 @@ $nav = static function (string $href, string $label, string $icon, string $curre
     </nav>
     <?php endif; ?>
     <div class="sidebar-foot">
+      <button type="button" class="nav-item nav-button" data-install-app hidden><span class="ico ico-plus" aria-hidden="true"></span>Install app</button>
       <a href="/workspaces/new" class="nav-item"><span class="ico ico-plus" aria-hidden="true"></span>New workspace</a>
       <?php if ($user && $user['is_platform_admin']): ?>
         <a href="/admin" class="nav-item<?= str_starts_with($path, '/admin') ? ' active' : '' ?>"><span class="ico ico-server" aria-hidden="true"></span>Platform admin</a>

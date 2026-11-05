@@ -56,6 +56,7 @@ final class Browser
             $opts['secure'] ?? false,
         );
         $response = $this->app->handle($request);
+        $this->app->runDeferred(); // as public/index.php does after sending the response
         if ($response->stream !== null) {
             ob_start();
             ($response->stream)();

@@ -205,9 +205,22 @@ matching or cross-site identity resolution to work around this.
 | Platform owner | Accounts, workspaces (names, counts), health, platform audit and masked security records. **No access to conversations or visitor data** unless a workspace owner grants time-limited, read-only support access; every page viewed under a grant is recorded in that workspace's audit history. |
 | Website visitor | Only their own conversation on that website, via their token. |
 
-## 9. Sub-processors and transfers
+## 9. Operator app notifications
 
-Signalpost itself sends visitor data to no third party. Your hosting
+When an operator enables notifications in the installed app, the server stores
+that device's push subscription (an endpoint URL issued by the browser vendor's
+push service and two public keys) and a coarse device label. When a visitor
+writes, a notification is sent through that push service (Google, Mozilla,
+Microsoft or Apple, depending on the operator's browser). The payload is
+end-to-end encrypted for the device; by default it contains only the website
+name and a link — not the visitor's message — unless the operator opts in to
+previews. Operators can remove devices under Account. Visitors' browsers are
+never subscribed to push notifications.
+
+## 10. Sub-processors and transfers
+
+Signalpost itself sends visitor data to no third party, apart from the
+encrypted operator notifications described in §9. Your hosting
 provider stores the database. If you enable the `trusted_header` geolocation
 provider behind a CDN such as Cloudflare, that CDN processes visitor IPs under
 your agreement with it. Outbound email (invitations, password resets) goes

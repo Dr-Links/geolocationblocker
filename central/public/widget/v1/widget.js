@@ -351,7 +351,7 @@
       el.notice,
       el.composer,
       el.consentBox,
-      W.show_branding !== false ? h('p', { 'class': 'sp-brand', text: 'Powered by Signalpost' }) : null
+      W.show_branding !== false ? h('p', { 'class': 'sp-brand', text: 'Powered by ' + String(cfg.platform || 'Signalpost').slice(0, 40) }) : null
     ]);
 
     el.prompt = h('div', { 'class': 'sp-prompt', role: 'region', 'aria-label': 'Analytics choice', hidden: '' }, [

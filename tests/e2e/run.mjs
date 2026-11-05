@@ -138,6 +138,28 @@ try {
   await visitor.locator('#signalpost-chat .sp-msg-operator').waitFor({ timeout: 10000 });
   check('conversation restored after reload', (await visitor.locator('#signalpost-chat .sp-msg').count()) === 2);
 
+  // ---------------------------------------------------------------- installable app (PWA)
+  console.log('== PWA: service worker, manifest, offline, privacy of the cache');
+  await op.goto(`${CENTRAL_URL}/w/${WS_ID}/inbox`);
+  const swState = await op.evaluate(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    return { scope: reg.scope, active: !!reg.active };
+  });
+  check('service worker active for the whole app', swState.active && swState.scope === `${CENTRAL_URL}/`, JSON.stringify(swState));
+  await op.reload();
+  await op.locator('.conv').first().waitFor();
+  check('page controlled by the service worker after reload', await op.evaluate(() => !!navigator.serviceWorker.controller));
+  const manifest = await op.evaluate(async () => (await fetch('/manifest.webmanifest')).json());
+  check('manifest is standalone with 192/512 and maskable icons', manifest.display === 'standalone' && manifest.icons.some(i => i.sizes === '512x512' && i.purpose === 'maskable') && manifest.icons.some(i => i.sizes === '192x192'));
+  const cached = await op.evaluate(async () => {
+    const out = [];
+    for (const name of await caches.keys()) { for (const req of await (await caches.open(name)).keys()) { out.push(new URL(req.url).pathname); } }
+    return out;
+  });
+  check('cache holds only static assets and the offline page', cached.length > 0 && cached.every(p => p.startsWith('/assets/') || p === '/offline.html'), cached.join(','));
+  await op.goto(`${CENTRAL_URL}/account`);
+  check('account page offers device notifications', (await op.textContent('#notifications')).includes('App and notifications'));
+
   // ---------------------------------------------------------------- live visitors
   await op.goto(`${CENTRAL_URL}/w/${WS_ID}/live`);
   await op.locator('[data-rows] tr td').first().waitFor();
@@ -215,7 +237,7 @@ try {
   await a11y.fill('#f-password', 'integration-pass-1');
   await a11y.click('button[type=submit]');
   await a11y.waitForURL(/\/w\/\d+/);
-  for (const path of ['', '/inbox', '/live', '/visitors', '/websites', '/members', '/privacy']) {
+  for (const path of ['', '/inbox', '/live', '/visitors', '/websites', '/members', '/privacy', '/../../account']) {
     await a11y.goto(`${CENTRAL_URL}/w/${WS_ID}${path}`);
     await a11y.waitForTimeout(800);
     v = await axe(a11y);
@@ -227,6 +249,18 @@ try {
 
   check('no JavaScript errors on the visitor page', pageErrors.length === 0, pageErrors.join(' | '));
   check('no JavaScript/CSP errors in the dashboard', opErrors.length === 0, opErrors.join(' | '));
+
+  // Connection loss: stop the central server; the service worker must serve the offline page
+  // and nothing private may be available from the device.
+  const offPage = await octx.newPage();
+  await offPage.goto(`${CENTRAL_URL}/account`);
+  await offPage.evaluate(() => navigator.serviceWorker.ready);
+  execSync(`pkill -f "php -S 127.0.0.[1]:${new URL(CENTRAL_URL).port}" || true`);
+  await sleep(500);
+  await offPage.goto(`${CENTRAL_URL}/w/${WS_ID}/inbox`).catch(() => {});
+  const offlineText = await offPage.textContent('body').catch(e => 'ERR ' + e.message);
+  check('offline page shown when the server is unreachable', offlineText.includes("You're offline"), offlineText.slice(0, 200));
+  check('no conversation content available offline', !(await offPage.content()).includes('operator here'));
 } finally {
   await browser.close();
 }

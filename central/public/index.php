@@ -5,7 +5,22 @@ declare(strict_types=1);
 // Front controller. The web server's document root must point at this
 // directory; everything else (config, storage, src) stays outside it.
 
-$factory = require dirname(__DIR__) . '/bootstrap.php';
+// Layout A (cPanel subdomain): document root = signalpost/public, app one level up.
+// Layout B (Hostinger hPanel and similar): document root = public_html, app in a
+// sibling folder named "signalpost" that is not web-accessible.
+$bootstrap = null;
+foreach ([dirname(__DIR__) . '/bootstrap.php', dirname(__DIR__) . '/signalpost/bootstrap.php'] as $candidate) {
+    if (is_file($candidate)) {
+        $bootstrap = $candidate;
+        break;
+    }
+}
+if ($bootstrap === null) {
+    http_response_code(500);
+    header('Content-Type: text/plain; charset=utf-8');
+    exit("Signalpost application files not found. See docs/INSTALL.md.\n");
+}
+$factory = require $bootstrap;
 $app = $factory();
 
 if (!$app->config->isConfigured()) {
@@ -22,3 +37,11 @@ if (!$app->config->isConfigured()) {
 }
 
 $app->handle(\Signalpost\Http\Request::fromGlobals())->send();
+
+// Finish the response first (PHP-FPM / LiteSpeed), then run deferred work such as push notifications.
+if (function_exists('fastcgi_finish_request')) {
+    fastcgi_finish_request();
+} elseif (function_exists('litespeed_finish_request')) {
+    litespeed_finish_request();
+}
+$app->runDeferred();

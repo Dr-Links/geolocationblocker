@@ -1,6 +1,6 @@
 # Signalpost — Test Report and Known Limitations
 
-Date: 2026-10-21 · Version: central 1.0.0, connector 1.0.0
+Date: 2026-11-05 · Version: central 1.1.0, connector 1.1.0 (adds PWA, push notifications, two-factor authentication, SMTP, Hostinger package)
 
 ## Environment actually used
 
@@ -20,10 +20,11 @@ server.
 
 | Suite | Command | Result |
 |---|---|---|
-| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **121 passed, 0 failed** (1016 assertions) |
+| PHP unit + feature tests (real MariaDB) | `cd central && vendor/bin/phpunit` | **137 passed, 0 failed** (1166 assertions) |
 | WordPress connector integration (real WordPress) | `tests/integration/wordpress-connector.sh` | **28 passed, 0 failed** |
-| Browser end-to-end (WP admin + visitor + operator + axe) | `tests/e2e/run.sh` | **49 passed, 0 failed** |
-| Clean install from the built ZIPs | `tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
+| Browser end-to-end (WP admin + visitor + operator + PWA + axe) | `tests/e2e/run.sh` | **57 passed, 0 failed** |
+| Clean install from the built ZIPs (cPanel layout) | `tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
+| Clean install, Hostinger layout with the alllivechats.com config template | `LAYOUT=hostinger tests/e2e/clean-install.sh` | **17 passed, 0 failed** |
 | Package build and verification | `build/build.sh` | passed (contents, lint, no secrets, version consistency) |
 
 ## Spec §19 coverage
@@ -77,6 +78,17 @@ server.
 * Export contains no secrets or other tenants' data ✔
 * Audit logs contain no credentials, passwords or message bodies ✔ (`ChatTest::testAuditLogsNeverContainMessageBodies`, `AuthenticationTest::testAuditLogsNeverContainPasswords`, website credential tests)
 
+**Installable app and push (1.1.0)** — `PushNotificationTest` + E2E
+* Encryption matches the RFC 8291 Appendix A example byte for byte; VAPID JWT verifies with the public key ✔
+* Subscriptions limited to HTTPS push-service hosts (SSRF), invalid keys rejected, CSRF/auth required ✔
+* Only active owners/agents of the workspace are notified; revoked, suspended, other-workspace and support-grant users are not; payloads decrypt with the simulated device key; no message text unless opted in; operator replies never notify; per-conversation coalescing ✔
+* Expired subscriptions (410) removed; push failures never break chat ✔; real HTTP delivery via the cURL transport to a local server ✔
+* Browser: service worker active with scope `/`, page controlled, manifest valid with maskable icon, cache contains only static assets, offline page served when the server is unreachable, no conversation content available offline ✔
+
+**Two-factor authentication and SMTP (1.1.0)** — `TwoFactorAndMailTest`
+* TOTP codes match RFC 6238 Appendix B vectors (checked during development); secret encrypted at rest; recovery codes hashed and single-use; password alone creates no session; replay rejected; pending sign-in expires after 5 minutes; 5-attempt throttle; disabling needs password + code; admin reset audited ✔
+* SMTP: AUTH LOGIN, envelope, encoded subject, dot-stuffing and base64 body against a scripted local SMTP server; failures return false without logging the password ✔
+
 **Accessibility** — axe-core (serious/critical rules) on login, overview, inbox, live, visitors, websites, members, privacy and the open widget: no violations after fixes. Keyboard: Escape closes the widget and returns focus to the launcher.
 
 ## Defects found and fixed during QA
@@ -94,6 +106,7 @@ server.
 | Security review | Support could write read markers; superseded credential could disconnect | New `conversations.mark_read` permission; grace check on disconnect |
 | Security review | Blocked visitors could still post consent/analytics | Denied |
 | axe-core | Insufficient colour contrast (muted text, pills, widget footer) | Darker text tokens |
+| 2FA tests (1.1.0) | Account page merged view variables with `+`, so the generated secret was discarded and 2FA setup could never complete | `array_replace`; covered by tests |
 
 Several of my own test assertions were also found to be wrong or vacuous
 during development and were corrected before results were recorded.
@@ -110,11 +123,16 @@ during development and were corrected before results were recorded.
 * **Load / capacity** — not measured. No traffic capacity is claimed.
 * **Dark mode, RTL languages, screen readers** — not manually verified (axe covers structural issues only).
 * **Independent penetration test** — not done.
+* **Real push delivery** to Chrome/Firefox/Edge/Safari push services and devices (including iOS Home Screen apps) — not possible from the test sandbox. Verified instead with the RFC vector, VAPID signature checks, decryption with simulated device keys and a real local HTTP delivery.
+* **SMTP over TLS against smtp.hostinger.com** — not tested (no network access to it); only plaintext against a local scripted server. Implicit TLS/STARTTLS use PHP's standard stream crypto with certificate verification.
+* **A real authenticator app** — not used; codes verified against RFC 6238 vectors.
+* **Deployment to alllivechats.com** — not performed: this session has no access to your Hostinger account (the domain is unreachable from the sandbox and no hosting credentials are available). The Hostinger package layout was installed and exercised locally instead.
 
 ## Known limitations (by design or deferred)
 
 * Short polling (no WebSockets); reply latency ≈ polling interval.
-* No multi-factor authentication yet; no SMTP transport (PHP `mail()` only).
+* Two-factor authentication is optional per user; it cannot yet be required platform-wide.
+* No QR code on the 2FA setup screen: the key is shown as text plus an `otpauth://` link for phones.
 * No WooCommerce integration (extension points only).
 * Visitor-ID blocking does not follow people who clear storage or switch browsers.
 * Visitor tokens live in the customer site's `localStorage`; scripts running on that site can read them (limited to that visitor's own conversation).

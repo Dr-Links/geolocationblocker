@@ -39,7 +39,8 @@ printf 'Require all denied\n' > "${APP}/docs/.htaccess"
 echo "-- verifying central package"
 for f in public/index.php public/.htaccess .htaccess bootstrap.php routes.php bin/console config/config.example.php \
          public/widget/v1/widget.js public/widget/v1/widget.css public/assets/app.css public/assets/app.js \
-         public/assets/inbox.js public/assets/live.js storage/logs/.gitkeep config/.htaccess storage/.htaccess src/.htaccess; do
+         public/assets/inbox.js public/assets/live.js public/sw.js public/offline.html public/assets/icons/icon-512.png \
+         public/assets/icons/maskable-512.png config/config.alllivechats.example.php storage/logs/.gitkeep config/.htaccess storage/.htaccess src/.htaccess; do
   [ -e "${APP}/${f}" ] || fail "missing ${f}"
 done
 [ ! -e "${APP}/config/config.php" ] || fail "config.php must not be packaged"
@@ -52,7 +53,7 @@ while IFS= read -r -d '' php; do php -l "$php" >/dev/null || fail "syntax error 
 if grep -rEn "spk_[0-9a-f]{12}\.[A-Za-z0-9_-]{43}|'key' => '[0-9a-f]{64}'" "${APP}"; then
   fail "possible credential or application key found in package"
 fi
-if grep -En "'password' => '[^']+'" "${APP}"/config/*.php; then
+if grep -En "'password' => '[^']+'|'key' => '[^']+'" "${APP}"/config/*.php; then
   fail "configuration in package contains a password"
 fi
 grep -q "'key' => ''" "${APP}/config/config.example.php" || fail "example config must not contain a key"
@@ -75,6 +76,23 @@ rm -f "${PLUGIN_ZIP}"
 ( cd "${STAGE}" && zip -qrX "${PLUGIN_ZIP}" signalpost-connector )
 echo "   $(unzip -l "${PLUGIN_ZIP}" | tail -1 | awk '{print $2}') files"
 
-( cd "${DIST}" && sha256sum "$(basename "${CENTRAL_ZIP}")" "$(basename "${PLUGIN_ZIP}")" > SHA256SUMS )
+echo "== Hostinger package for alllivechats.com"
+HOST="${STAGE}/hostinger"
+mkdir -p "${HOST}"
+cp -r "${APP}" "${HOST}/signalpost"
+mv "${HOST}/signalpost/public" "${HOST}/public_html"
+for f in index.php .htaccess sw.js offline.html widget/v1/widget.js assets/icons/icon-512.png; do
+  [ -e "${HOST}/public_html/${f}" ] || fail "hostinger public_html missing ${f}"
+done
+[ ! -e "${HOST}/signalpost/public" ] || fail "hostinger app folder must not contain public/"
+[ -f "${HOST}/signalpost/config/config.alllivechats.example.php" ] || fail "alllivechats config template missing"
+grep -q "'key' => ''" "${HOST}/signalpost/config/config.alllivechats.example.php" || fail "template must not contain a key"
+grep -q "signalpost/bootstrap.php" "${HOST}/public_html/index.php" || fail "front controller cannot find the sibling app folder"
+HOSTINGER_ZIP="${DIST}/alllivechats-hostinger-${CENTRAL_VERSION}.zip"
+rm -f "${HOSTINGER_ZIP}"
+( cd "${HOST}" && zip -qrX "${HOSTINGER_ZIP}" signalpost public_html )
+echo "   $(unzip -l "${HOSTINGER_ZIP}" | tail -1 | awk '{print $2}') files"
+
+( cd "${DIST}" && sha256sum "$(basename "${CENTRAL_ZIP}")" "$(basename "${PLUGIN_ZIP}")" "$(basename "${HOSTINGER_ZIP}")" > SHA256SUMS )
 echo "== Done"
 cat "${DIST}/SHA256SUMS"

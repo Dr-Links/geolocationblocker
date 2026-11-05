@@ -56,6 +56,8 @@ final class Config
                 'transport' => 'mail',
                 'from' => 'no-reply@example.com',
                 'from_name' => 'Signalpost',
+                // Used when transport = "smtp". Hostinger: smtp.hostinger.com, 465, ssl.
+                'smtp' => ['host' => '', 'port' => 465, 'encryption' => 'ssl', 'username' => '', 'password' => ''],
             ],
             'polling' => [
                 'widget_active_ms' => 4000,
@@ -79,6 +81,12 @@ final class Config
                 // none | table | trusted_header
                 'provider' => 'none',
                 'trusted_header' => 'CF-IPCountry',
+            ],
+            'push' => [
+                'enabled' => true,
+                // Contact for push services (RFC 8292). Defaults to mailto:<mail.from>.
+                'subject' => '',
+                'allowed_host_suffixes' => \Signalpost\Push\PushService::DEFAULT_ALLOWED_HOST_SUFFIXES,
             ],
             'paths' => [
                 'storage' => SIGNALPOST_ROOT . '/storage',

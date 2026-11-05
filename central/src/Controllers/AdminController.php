@@ -40,6 +40,13 @@ final class AdminController extends Controller
         return Response::redirect('/admin/users?ok=saved');
     }
 
+    public function resetTwoFactor(Request $request): Response
+    {
+        $admin = $this->requirePlatformAdmin($request);
+        $this->app->get(\Signalpost\Auth\TwoFactorService::class)->reset($admin['id'], $request->intParam('id'));
+        return Response::redirect('/admin/users?ok=saved');
+    }
+
     public function workspaces(Request $request): Response
     {
         $this->requirePlatformAdmin($request);

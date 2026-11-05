@@ -9,7 +9,7 @@
 <section class="card">
   <h2>System</h2>
   <dl class="kv">
-    <dt>Signalpost</dt><dd><?= $this->e($h['app_version']) ?></dd>
+    <dt>Application version</dt><dd><?= $this->e($h['app_version']) ?></dd>
     <dt>PHP</dt><dd><?= $this->e($h['php_version']) ?></dd>
     <dt>Database</dt><dd><?= $this->e($h['db_version']) ?></dd>
     <dt>Migrations</dt><dd><?= (int) $h['migrations_applied'] ?> applied<?php if ($h['migrations_pending']): ?>, <strong class="text-warn"><?= count($h['migrations_pending']) ?> pending</strong>

@@ -3,7 +3,7 @@
  * Plugin Name:       Signalpost Connector
  * Plugin URI:        https://github.com/dr-links/geolocationblocker
  * Description:       Connects this WordPress site to a Signalpost central live chat server and loads the chat widget. Theme- and page-builder-independent.
- * Version:           1.0.0
+ * Version:           1.1.0
  * Requires at least: 6.0
  * Requires PHP:      7.4
  * Author:            Signalpost
@@ -19,7 +19,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'SIGNALPOST_CONNECTOR_VERSION', '1.0.0' );
+define( 'SIGNALPOST_CONNECTOR_VERSION', '1.1.0' );
 define( 'SIGNALPOST_CONNECTOR_FILE', __FILE__ );
 define( 'SIGNALPOST_CONNECTOR_DIR', plugin_dir_path( __FILE__ ) );
 define( 'SIGNALPOST_CONNECTOR_URL', plugin_dir_url( __FILE__ ) );

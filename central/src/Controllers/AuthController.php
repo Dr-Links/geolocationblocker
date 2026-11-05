@@ -7,6 +7,7 @@ namespace Signalpost\Controllers;
 use Signalpost\Admin\PlatformSettings;
 use Signalpost\Auth\AuthService;
 use Signalpost\Auth\SessionManager;
+use Signalpost\Auth\TwoFactorService;
 use Signalpost\Core\HttpException;
 use Signalpost\Core\Validator;
 use Signalpost\Http\Request;
@@ -35,6 +36,16 @@ final class AuthController extends Controller
                 throw new HttpException(401, 'invalid_credentials', 'Invalid email or password.');
             }
             $userId = $this->app->get(AuthService::class)->login($email, $password, $request);
+            $twoFactor = $this->app->get(TwoFactorService::class);
+            if ($twoFactor->isEnabled($userId)) {
+                // Password verified; a second factor is still required before any session exists.
+                $response = Response::redirect('/login/2fa');
+                $response->cookie(TwoFactorService::COOKIE, $twoFactor->startLogin($userId), [
+                    'expires' => $this->app->clock->timestamp() + 300, 'path' => '/login',
+                    'secure' => $this->app->isSecure($request), 'httponly' => true, 'samesite' => 'Lax',
+                ]);
+                return $response;
+            }
             $sessions = $this->app->get(SessionManager::class);
             // Regenerate: drop any session presented with this request, issue a new one.
             if (isset($request->attributes['session'])) {
@@ -48,6 +59,33 @@ final class AuthController extends Controller
             'title' => 'Sign in', 'email' => $email, 'errors' => $errors, 'registration' => $this->registrationMode(),
             'unverified' => str_contains((string) ($errors['_form'] ?? ''), 'verify'),
         ], 'layout_plain', $status));
+    }
+
+    public function twoFactorForm(Request $request): Response
+    {
+        if ($this->app->get(TwoFactorService::class)->pendingUser($request->cookie(TwoFactorService::COOKIE)) === null) {
+            return Response::redirect('/login');
+        }
+        return $this->page($request, 'auth/two_factor', ['title' => 'Two-factor authentication', 'errors' => []], 'layout_plain');
+    }
+
+    public function twoFactor(Request $request): Response
+    {
+        $token = (string) $request->cookie(TwoFactorService::COOKIE);
+        return $this->withErrors(function () use ($request, $token) {
+            $userId = $this->app->get(TwoFactorService::class)->completeLogin($token, (string) $request->input('code', ''), $this->app->clientIp($request));
+            $sessions = $this->app->get(SessionManager::class);
+            if (isset($request->attributes['session'])) {
+                $sessions->revoke((int) $request->attributes['session']['id']);
+            }
+            $created = $sessions->create($userId, $request);
+            $response = Response::redirect('/');
+            $sessions->attachCookie($response, $request, $created['token']);
+            $response->cookie(TwoFactorService::COOKIE, '', ['expires' => 1, 'path' => '/login', 'secure' => $this->app->isSecure($request), 'httponly' => true, 'samesite' => 'Lax']);
+            return $response;
+        }, fn (array $errors, int $status) => $status === 400
+            ? Response::redirect('/login')
+            : $this->page($request, 'auth/two_factor', ['title' => 'Two-factor authentication', 'errors' => $errors], 'layout_plain', $status));
     }
 
     public function logout(Request $request): Response

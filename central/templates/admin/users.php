@@ -8,12 +8,16 @@
     <?php foreach ($users as $u): ?>
       <tr><td><?= (int) $u['id'] ?></td><td><?= $this->e($u['email']) ?><?= $u['is_platform_admin'] ? ' <span class="pill">platform owner</span>' : '' ?></td><td><?= $this->e($u['display_name']) ?></td>
         <td><span class="pill pill-<?= $this->e($u['status']) ?>"><?= $this->e($u['status']) ?></span></td><td><?= (int) $u['workspaces'] ?></td>
-        <td><?= $this->time($u['created_at']) ?></td><td><?= $this->time($u['last_login_at']) ?></td>
+        <td><?= $this->time($u['created_at']) ?></td><td><?= $this->time($u['last_login_at']) ?><?= $u['totp_enabled_at'] ? ' <span class="pill pill-ok">2FA</span>' : '' ?></td>
         <td><?php if ((int) $u['id'] !== (int) $user['id']): ?>
           <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/status" data-confirm="<?= $u['status'] === 'suspended' ? 'Reactivate this account?' : 'Suspend this account? All of its sessions end immediately.' ?>">
             <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
             <input type="hidden" name="status" value="<?= $u['status'] === 'suspended' ? 'active' : 'suspended' ?>">
             <button class="btn btn-sm <?= $u['status'] === 'suspended' ? '' : 'btn-danger' ?>"><?= $u['status'] === 'suspended' ? 'Reactivate' : 'Suspend' ?></button></form>
+          <?php if ($u['totp_enabled_at']): ?>
+          <form method="post" action="/admin/users/<?= (int) $u['id'] ?>/reset-2fa" data-confirm="Reset two-factor authentication for this account? Only do this after verifying the person's identity. Their sessions will end.">
+            <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>"><button class="btn btn-sm">Reset 2FA</button></form>
+          <?php endif; ?>
         <?php endif; ?></td></tr>
     <?php endforeach; ?>
     </tbody>

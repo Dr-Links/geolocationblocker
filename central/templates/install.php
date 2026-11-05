@@ -1,6 +1,6 @@
 <?php /** @var \Signalpost\Core\View $this */ ?>
 <section class="card auth-card wide">
-  <h1>Install Signalpost</h1>
+  <h1>Install <?= $this->e($this->appName()) ?></h1>
   <p>Create the platform owner account. This page works only once, while no account exists.</p>
   <div class="notice notice-info">
     <strong>Prove you control this hosting account.</strong> A one-time setup token was written to

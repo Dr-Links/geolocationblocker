@@ -65,6 +65,23 @@ final class View
         return '<time datetime="' . $this->e($this->iso($sqlTime)) . '" data-local>' . $this->e($sqlTime) . ' UTC</time>';
     }
 
+    public function appName(): string
+    {
+        return (string) $this->app->config->get('app.name');
+    }
+
+    /** Tags that make the dashboard an installable app (PWA). */
+    public function pwaHead(): string
+    {
+        return '<link rel="manifest" href="/manifest.webmanifest">' . "\n"
+            . '<meta name="theme-color" content="#0b2b2c">' . "\n"
+            . '<meta name="mobile-web-app-capable" content="yes">' . "\n"
+            . '<meta name="apple-mobile-web-app-capable" content="yes">' . "\n"
+            . '<meta name="apple-mobile-web-app-title" content="' . $this->e($this->appName()) . '">' . "\n"
+            . '<link rel="icon" type="image/png" sizes="32x32" href="/assets/icons/favicon-32.png">' . "\n"
+            . '<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon.png">';
+    }
+
     public function shared(string $key, mixed $default = null): mixed
     {
         return $this->shared[$key] ?? $default;

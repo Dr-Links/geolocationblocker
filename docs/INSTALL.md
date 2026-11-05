@@ -1,5 +1,7 @@
 # Installing Signalpost on cPanel shared hosting
 
+**Hostinger (hPanel) / alllivechats.com:** follow docs/DEPLOY_HOSTINGER.md instead.
+
 This guide installs the central application at a subdomain such as
 `https://chat.example.com`, then connects WordPress sites with the plugin.
 No SSH, Composer, Node.js, Redis, WebSockets or root access is required.
@@ -17,7 +19,7 @@ No SSH, Composer, Node.js, Redis, WebSockets or root access is required.
 | Web server | Apache or LiteSpeed with `.htaccess` + `mod_rewrite` | Nginx: route all non-file requests to `public/index.php`. |
 | HTTPS | Required in production | cPanel AutoSSL / Let's Encrypt is fine. |
 | Cron | Recommended | For retention cleanup (every 15–60 min). |
-| Email | PHP `mail()` | For invitations and password resets. Invitation links are also shown to the inviting owner. |
+| Email | SMTP (recommended) or PHP `mail()` | For invitations, verification and password resets. Set `mail.transport` to `smtp` and fill `mail.smtp`. |
 
 Tested locally with PHP 8.3.6 and MariaDB 10.11 (see docs/TEST_REPORT.md).
 Other versions within the stated minimums are expected to work but were not
@@ -25,8 +27,8 @@ tested.
 
 ## 2. Deliverables
 
-* `dist/signalpost-central-1.0.0.zip` — the central application (folder `signalpost/`).
-* `dist/signalpost-connector-1.0.0.zip` — the WordPress plugin.
+* `dist/signalpost-central-1.1.0.zip` — the central application (folder `signalpost/`).
+* `dist/signalpost-connector-1.1.0.zip` — the WordPress plugin.
 
 Build them yourself from the repository with `build/build.sh` (see §9).
 
@@ -45,7 +47,7 @@ Tables are created by the installer; you do not import any SQL manually.
 ## 4. Upload the application
 
 1. cPanel → **File Manager** → your home directory (e.g. `/home/cpuser/`), **not** `public_html`.
-2. **Upload** `signalpost-central-1.0.0.zip`, then **Extract**. You get `/home/cpuser/signalpost/`.
+2. **Upload** `signalpost-central-1.1.0.zip`, then **Extract**. You get `/home/cpuser/signalpost/`.
 3. Permissions: directories `755`, files `644`; `signalpost/storage/` and its
    subfolders must be writable by PHP (usually `755` is enough under suPHP/
    PHP-FPM as your user; use `775` only if your host requires it).

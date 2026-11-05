@@ -58,6 +58,74 @@
     });
   });
 
+  // ---- Installable app (PWA) -------------------------------------------------
+  if ('serviceWorker' in navigator && window.isSecureContext) {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch(function () { /* app still works without it */ });
+  }
+  var installBtn = document.querySelector('[data-install-app]');
+  var deferredPrompt = null;
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    if (installBtn) { installBtn.hidden = false; }
+  });
+  if (installBtn) {
+    installBtn.addEventListener('click', function () {
+      if (!deferredPrompt) { return; }
+      deferredPrompt.prompt();
+      deferredPrompt.userChoice.finally(function () { deferredPrompt = null; installBtn.hidden = true; });
+    });
+  }
+
+  // ---- Push notifications (Account page) -------------------------------------
+  var pushBox = document.querySelector('[data-push]');
+  if (pushBox) {
+    var statusEl = pushBox.querySelector('[data-push-status]');
+    var enableBtn = pushBox.querySelector('[data-push-enable]');
+    var testBtn = pushBox.querySelector('[data-push-test]');
+    var disableBtn = pushBox.querySelector('[data-push-disable]');
+    var csrf = pushBox.getAttribute('data-csrf');
+    var say = function (t) { statusEl.textContent = t; };
+    var api = function (method, path, body) {
+      return fetch(path, { method: method, credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'Accept': 'application/json', 'X-CSRF-Token': csrf }, body: body ? JSON.stringify(body) : undefined })
+        .then(function (r) { return r.json().then(function (j) { if (!r.ok || !j.ok) { throw new Error((j.error && j.error.message) || 'Request failed'); } return j.data; }); });
+    };
+    var keyBytes = function (b64) {
+      var s = atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((b64.length + 3) % 4));
+      var a = new Uint8Array(s.length); for (var i = 0; i < s.length; i++) { a[i] = s.charCodeAt(i); } return a;
+    };
+    var refresh = function () {
+      if (!('serviceWorker' in navigator) || !('PushManager' in window) || !window.isSecureContext) {
+        say('This browser does not support push notifications here. On iPhone/iPad, install the app to the Home Screen first. Notifications also require HTTPS.');
+        return;
+      }
+      navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        enableBtn.hidden = !!sub; testBtn.hidden = !sub; disableBtn.hidden = !sub;
+        say(sub ? 'Notifications are on for this device.' : (Notification.permission === 'denied' ? 'Notifications are blocked in this browser\'s site settings.' : 'Notifications are off for this device.'));
+      });
+    };
+    enableBtn.addEventListener('click', function () {
+      Notification.requestPermission().then(function (perm) {
+        if (perm !== 'granted') { say('Permission was not granted.'); return; }
+        return api('GET', '/api/v1/push/key').then(function (d) {
+          return navigator.serviceWorker.ready.then(function (reg) {
+            return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: keyBytes(d.public_key) });
+          });
+        }).then(function (sub) { return api('POST', '/api/v1/push/subscriptions', sub.toJSON()); }).then(refresh);
+      }).catch(function (e) { say('Could not enable notifications: ' + e.message); });
+    });
+    testBtn.addEventListener('click', function () {
+      api('POST', '/api/v1/push/test').then(function (d) { say(d.delivered ? 'Test sent — it should arrive in a few seconds.' : 'The push service did not accept the test. Try turning notifications off and on.'); }, function (e) { say(e.message); });
+    });
+    disableBtn.addEventListener('click', function () {
+      navigator.serviceWorker.ready.then(function (reg) { return reg.pushManager.getSubscription(); }).then(function (sub) {
+        if (!sub) { return; }
+        return api('POST', '/api/v1/push/subscriptions/delete', { endpoint: sub.endpoint }).then(function () { return sub.unsubscribe(); });
+      }).then(refresh).catch(function (e) { say(e.message); });
+    });
+    refresh();
+  }
+
   // Show UTC timestamps in the viewer's local time.
   window.SignalpostFormatTime = function (iso) {
     var d = new Date(iso);

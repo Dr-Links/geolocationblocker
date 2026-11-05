@@ -32,11 +32,17 @@ and milestone criteria are in [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATIO
   fingerprinting.
 * Retention per category with dry-run and bounded cron cleanup; workspace and
   visitor export; visitor, website and workspace deletion.
+* **Installable operator app (PWA)** with push notifications for new visitor
+  messages (standard Web Push via the browser's own push service; no paid service or SDK), offline page, and a
+  service worker that never caches private data.
+* Optional **two-factor authentication** (TOTP + recovery codes) and SMTP email.
+* Ready-made package and guide for **alllivechats.com on Hostinger**.
 
 ## Documentation
 
 | Topic | File |
 |---|---|
+| **Deploying to alllivechats.com on Hostinger (step by step)** | [docs/DEPLOY_HOSTINGER.md](docs/DEPLOY_HOSTINGER.md) |
 | Installation, cPanel deployment, database, first owner, upgrades | [docs/INSTALL.md](docs/INSTALL.md) |
 | WordPress plugin | [docs/WORDPRESS_PLUGIN.md](docs/WORDPRESS_PLUGIN.md) |
 | Cron | [docs/CRON.md](docs/CRON.md) |
@@ -53,6 +59,8 @@ and milestone criteria are in [`docs/IMPLEMENTATION_PLAN.md`](docs/IMPLEMENTATIO
 
 * `dist/signalpost-central-<version>.zip` — upload and extract on the server.
 * `dist/signalpost-connector-<version>.zip` — install via WordPress → Plugins → Add New → Upload.
+* `dist/alllivechats-hostinger-<version>.zip` — the central app laid out for a Hostinger domain folder
+  (`public_html/` + `signalpost/`), with a config template for alllivechats.com.
 
 ## Development
 
@@ -78,6 +86,7 @@ Integration tests with a real WordPress install (needs WordPress core at
 tests/integration/wordpress-connector.sh   # plugin pairing, rotation, uninstall behaviour
 tests/e2e/run.sh                           # Playwright: WordPress admin + visitor widget + operator dashboard
 tests/e2e/clean-install.sh                 # builds the ZIP, installs it fresh, runs the web installer
+LAYOUT=hostinger tests/e2e/clean-install.sh   # same, using the Hostinger package layout
 ```
 
 Never point test variables at a database containing real data; the suite

@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Signalpost\Chat;
 
 use Signalpost\Chat\Transport\MessageNotifier;
-use Signalpost\Chat\Transport\PollingNotifier;
+use Signalpost\Push\PushNotifier;
 use Signalpost\Core\App;
 use Signalpost\Core\HttpException;
 use Signalpost\Tenancy\WorkspaceContext;
@@ -29,7 +29,9 @@ final class ConversationService
 
     private function notifier(): MessageNotifier
     {
-        return $this->app->get(PollingNotifier::class);
+        // Clients still poll for messages; the push notifier additionally alerts
+        // operators' installed apps. Swap in another MessageNotifier for WebSockets.
+        return $this->app->get(PushNotifier::class);
     }
 
     public static function validClientId(mixed $id): bool

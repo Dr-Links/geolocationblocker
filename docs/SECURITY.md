@@ -87,8 +87,14 @@ including polling endpoints — is written to the workspace's audit history
   invitation stay unverified until the emailed verification link is used.
   Accepting an invitation or removing a member invalidates that address's
   other pending invitations. Registration defaults to invitation-only.
-* Multi-factor authentication is **not implemented** in this release (planned
-  extension).
+* Optional two-factor authentication (TOTP, RFC 6238): the secret is encrypted
+  at rest (AES-256-GCM with a key derived from `app.key`); codes are accepted
+  within ±30 s and can never be reused; 10 single-use recovery codes are
+  stored hashed. The password step alone never creates a session: it issues a
+  5-minute single-use token in an HttpOnly cookie scoped to `/login`, and the
+  second step is throttled (5 attempts / 15 min). Turning 2FA off needs the
+  password and a current code. The platform owner can reset 2FA for a locked-out
+  user (audited, ends that user's sessions).
 
 ## Website credentials
 
@@ -156,6 +162,23 @@ including polling endpoints — is written to the workspace's audit history
 * The application key (`app.key`) must be kept secret; rotating it invalidates
   visitor tokens and rate-limit buckets (visitors simply start new sessions).
 
+## Installable app and push notifications
+
+* The service worker (`/sw.js`) caches only static assets and an offline page.
+  Dashboard pages and API responses are never cached, so no conversation data
+  is stored on devices by the app.
+* Push subscriptions are tied to the signed-in user; endpoints must be HTTPS
+  URLs on known browser push services (FCM, Mozilla, Windows, Apple), which
+  prevents server-side request forgery through subscription URLs.
+* Payloads are encrypted for the device (RFC 8291) and authenticated with
+  VAPID (RFC 8292). VAPID keys are generated on first use and stored in the
+  database.
+* Recipients are re-checked at send time (active user, active membership,
+  active workspace). Support-access grants never receive notifications.
+  Message text is excluded unless the user opts in.
+* Sending happens after the visitor's response is flushed and never affects
+  message delivery; expired subscriptions are removed.
+
 ## WordPress plugin
 
 * All admin actions require `manage_options` and a nonce; inputs are
@@ -174,7 +197,7 @@ including polling endpoints — is written to the workspace's audit history
 
 ## Known limitations
 
-* No multi-factor authentication yet.
+* Two-factor authentication is optional per user (not enforceable platform-wide yet).
 * Short polling: an operator's reply reaches the visitor within roughly the
   polling interval (default 4 s with the chat open, 15 s closed, 30 s in a
   background tab).

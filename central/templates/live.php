@@ -7,7 +7,7 @@
     </div>
     <span class="muted small" data-updated role="status" aria-live="polite"></span>
   </div>
-  <p class="muted small">“Active” means the visitor's browser contacted Signalpost recently; it does not prove they are still on the page.
+  <p class="muted small">“Active” means the visitor's browser contacted the chat server recently; it does not prove they are still on the page.
     Page information appears only for visitors whose analytics are permitted, and only for pages on your connected websites.
     Visitors who never opened the chat and have not permitted analytics are not tracked and do not appear.</p>
   <div class="table-wrap"><table class="table">

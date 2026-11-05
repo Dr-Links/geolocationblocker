@@ -114,6 +114,7 @@ class Signalpost_Frontend {
 			),
 			'polling'  => isset( $config['polling'] ) ? $config['polling'] : array(),
 			'locale'   => get_locale(),
+			'platform' => isset( $config['platform_name'] ) ? sanitize_text_field( $config['platform_name'] ) : 'Signalpost',
 		);
 		/**
 		 * Filter the client configuration passed to the widget. Never add secrets here:

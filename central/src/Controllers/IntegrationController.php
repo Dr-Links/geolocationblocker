@@ -112,6 +112,7 @@ final class IntegrationController extends Controller
             'widget' => $settings['widget'],
             'tracking' => $settings['tracking'],
             'polling' => $polling,
+            'platform_name' => (string) $this->app->config->get('app.name'),
             'endpoints' => $this->endpoints(),
         ];
     }

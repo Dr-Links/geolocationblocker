@@ -16,6 +16,7 @@ use Signalpost\Controllers\WebsiteController;
 use Signalpost\Controllers\WidgetController;
 use Signalpost\Controllers\MembersController;
 use Signalpost\Controllers\PrivacyController;
+use Signalpost\Controllers\PwaController;
 use Signalpost\Controllers\WorkspaceController;
 use Signalpost\Http\Router;
 
@@ -30,6 +31,15 @@ use Signalpost\Http\Router;
 return static function (Router $r): void {
     $r->get('/api/v1/health', [HealthController::class, 'health']);
 
+    // Installable operator app (PWA) and Web Push.
+    $r->get('/manifest.webmanifest', [PwaController::class, 'manifest']);
+    $r->get('/api/v1/push/key', [PwaController::class, 'key'], 'session');
+    $r->post('/api/v1/push/subscriptions', [PwaController::class, 'subscribe'], 'session');
+    $r->post('/api/v1/push/subscriptions/delete', [PwaController::class, 'unsubscribe'], 'session');
+    $r->post('/api/v1/push/test', [PwaController::class, 'test'], 'session');
+    $r->post('/account/notifications', [PwaController::class, 'preferences'], 'session');
+    $r->post('/account/devices/{id}/remove', [PwaController::class, 'removeDevice'], 'session');
+
     // Installation (only while no user exists).
     $r->get('/install', [InstallController::class, 'show']);
     $r->post('/install', [InstallController::class, 'submit']);
@@ -38,6 +48,8 @@ return static function (Router $r): void {
     $r->get('/login', [AuthController::class, 'loginForm'], 'guest');
     $r->post('/login', [AuthController::class, 'login'], 'guest');
     $r->post('/logout', [AuthController::class, 'logout'], 'session');
+    $r->get('/login/2fa', [AuthController::class, 'twoFactorForm'], 'guest');
+    $r->post('/login/2fa', [AuthController::class, 'twoFactor'], 'guest');
     $r->get('/register', [AuthController::class, 'registerForm'], 'guest');
     $r->post('/register', [AuthController::class, 'register'], 'guest');
     $r->get('/forgot-password', [AuthController::class, 'forgotForm'], 'guest');
@@ -59,6 +71,10 @@ return static function (Router $r): void {
     $r->post('/account/password', [AccountController::class, 'changePassword'], 'session');
     $r->post('/account/sessions/{id}/revoke', [AccountController::class, 'revokeSession'], 'session');
     $r->post('/account/sessions/revoke-others', [AccountController::class, 'revokeOtherSessions'], 'session');
+    $r->post('/account/2fa/setup', [AccountController::class, 'twoFactorSetup'], 'session');
+    $r->post('/account/2fa/enable', [AccountController::class, 'twoFactorEnable'], 'session');
+    $r->post('/account/2fa/disable', [AccountController::class, 'twoFactorDisable'], 'session');
+    $r->post('/account/2fa/recovery-codes', [AccountController::class, 'recoveryCodes'], 'session');
 
     $r->get('/w/{ws}', [WorkspaceController::class, 'overview'], 'session');
     $r->get('/w/{ws}/settings', [WorkspaceController::class, 'settings'], 'session');
@@ -132,6 +148,7 @@ return static function (Router $r): void {
     $r->post('/admin/migrate', [AdminController::class, 'runMigrations'], 'session');
     $r->get('/admin/users', [AdminController::class, 'users'], 'session');
     $r->post('/admin/users/{id}/status', [AdminController::class, 'setUserStatus'], 'session');
+    $r->post('/admin/users/{id}/reset-2fa', [AdminController::class, 'resetTwoFactor'], 'session');
     $r->get('/admin/workspaces', [AdminController::class, 'workspaces'], 'session');
     $r->post('/admin/workspaces/{id}/status', [AdminController::class, 'setWorkspaceStatus'], 'session');
     $r->get('/admin/settings', [AdminController::class, 'settings'], 'session');

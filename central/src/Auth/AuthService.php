@@ -57,7 +57,7 @@ final class AuthService
         if ($db->value('SELECT id FROM users WHERE email = ?', [$email]) !== null) {
             // Do not reveal whether the address is registered: behave as success,
             // and tell the existing owner by email instead.
-            $this->app->get(Mailer::class)->send($email, 'Signalpost registration attempt', "Someone tried to register a Signalpost account with this address. If it was you, sign in or reset your password at:\n" . $this->app->get(Mailer::class)->url('/forgot-password') . "\n");
+            $this->app->get(Mailer::class)->send($email, $this->app->config->get('app.name') . ' registration attempt', "Someone tried to register a Signalpost account with this address. If it was you, sign in or reset your password at:\n" . $this->app->get(Mailer::class)->url('/forgot-password') . "\n");
             return ['user_id' => null, 'needs_verification' => true];
         }
         $verify = (bool) $settings->get('require_email_verification');
@@ -151,7 +151,7 @@ final class AuthService
         }
         $token = $this->issueToken((int) $user['id'], self::TOKEN_RESET, 3600);
         $mailer = $this->app->get(Mailer::class);
-        $mailer->send($user['email'], 'Reset your Signalpost password', "A password reset was requested for your Signalpost account.\n\nReset it within one hour:\n" . $mailer->url('/reset-password?token=' . rawurlencode($token)) . "\n\nIf you did not request this, ignore this email.\n");
+        $mailer->send($user['email'], 'Reset your ' . $this->app->config->get('app.name') . ' password', "A password reset was requested for your Signalpost account.\n\nReset it within one hour:\n" . $mailer->url('/reset-password?token=' . rawurlencode($token)) . "\n\nIf you did not request this, ignore this email.\n");
     }
 
     public function resetPassword(string $token, string $password): int
@@ -264,7 +264,7 @@ final class AuthService
     {
         $token = $this->issueToken($userId, self::TOKEN_VERIFY, 86400 * 2);
         $mailer = $this->app->get(Mailer::class);
-        $mailer->send($email, 'Verify your Signalpost email', "Confirm your email address to activate your Signalpost account:\n" . $mailer->url('/verify-email?token=' . rawurlencode($token)) . "\n\nThe link expires in 48 hours.\n");
+        $mailer->send($email, 'Verify your ' . $this->app->config->get('app.name') . ' email', "Confirm your email address to activate your Signalpost account:\n" . $mailer->url('/verify-email?token=' . rawurlencode($token)) . "\n\nThe link expires in 48 hours.\n");
     }
 
     private function insertUser(string $email, string $password, string $name, string $status, bool $verified, bool $admin): int

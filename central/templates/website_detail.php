@@ -73,7 +73,7 @@ $chk = static fn ($v) => $v ? ' checked' : '';
     </section>
     <section class="card">
       <h2>Delete website</h2>
-      <p>Permanently deletes this website's visitors, conversations, messages, analytics, consent records and settings from Signalpost. Backups may retain data until they expire. This cannot be undone.</p>
+      <p>Permanently deletes this website's visitors, conversations, messages, analytics, consent records and settings. Backups may retain data until they expire. This cannot be undone.</p>
       <form method="post" action="<?= $siteUrl ?>/delete" class="stack" data-confirm="Permanently delete this website and all of its data?">
         <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
         <?= $this->partial('partials/field', ['name' => 'confirm_name', 'label' => 'Type the website name to confirm', 'errors' => $errors, 'required' => true]) ?>
@@ -94,7 +94,7 @@ $chk = static fn ($v) => $v ? ' checked' : '';
       <div class="field"><label for="w-pos">Position</label><select id="w-pos" name="position"<?= $dis ?>><option value="right"<?= $sel($w['position'], 'right') ?>>Bottom right</option><option value="left"<?= $sel($w['position'], 'left') ?>>Bottom left</option></select></div>
       <div class="field"><label for="w-off">Distance from edge (px)</label><input id="w-off" type="number" min="0" max="80" name="offset_px" value="<?= (int) $w['offset_px'] ?>"<?= $dis ?>></div>
       <?= $this->partial('partials/field', ['name' => 'launcher_label', 'label' => 'Launcher button label (screen readers and tooltip)', 'value' => $w['launcher_label'], 'disabled' => !$canEdit, 'errors' => $errors, 'max' => 30]) ?>
-      <div class="field check"><input id="w-brand" type="checkbox" name="show_branding" value="1"<?= $chk($w['show_branding']) . $dis ?>><label for="w-brand">Show “Powered by Signalpost”</label></div>
+      <div class="field check"><input id="w-brand" type="checkbox" name="show_branding" value="1"<?= $chk($w['show_branding']) . $dis ?>><label for="w-brand">Show “Powered by <?= $this->e($this->appName()) ?>”</label></div>
     </fieldset>
     <fieldset class="stack"><legend>Welcome screen</legend>
       <?= $this->partial('partials/field', ['name' => 'greeting_title', 'label' => 'Greeting', 'value' => $w['greeting_title'], 'disabled' => !$canEdit, 'errors' => $errors, 'max' => 60]) ?>
@@ -122,7 +122,7 @@ $chk = static fn ($v) => $v ? ' checked' : '';
   <section class="card notice-info">
     <p><strong>Essential chat</strong> (an opaque chat identifier, your conversations and messages, timestamps and delivery state) always works and does not depend on these settings.</p>
     <p><strong>Optional analytics</strong> — page-view history, visit counts, referrer, coarse browser/OS and estimated country — is collected only when enabled here <em>and</em> permitted for the individual visitor. If permission cannot be verified, nothing optional is collected.</p>
-    <p class="small">Signalpost does not make your website legally compliant by itself. Decide with your adviser which legal basis applies in your jurisdictions; see docs/PRIVACY.md.</p>
+    <p class="small">This software does not make your website legally compliant by itself. Decide with your adviser which legal basis applies in your jurisdictions; see docs/PRIVACY.md.</p>
   </section>
   <form method="post" action="<?= $siteUrl ?>/settings/tracking" class="card stack">
     <input type="hidden" name="_csrf" value="<?= $this->e($csrf) ?>">
@@ -133,7 +133,7 @@ $chk = static fn ($v) => $v ? ' checked' : '';
     <div class="field check"><input id="t-ack" type="checkbox" name="ack_other_basis" value="1"<?= $dis ?>><label for="t-ack">If choosing “another basis”: I confirm my organisation has assessed and documented that basis for these purposes.</label></div>
     <?php if (!empty($errors['ack_other_basis'])): ?><p class="field-error"><?= $this->e($errors['ack_other_basis']) ?></p><?php endif; ?>
     <div class="field"><label for="t-src">Consent signal source</label><select id="t-src" name="consent_source"<?= $dis ?>>
-      <option value="widget"<?= $sel($t['consent_source'], 'widget') ?>>Signalpost widget asks the visitor</option>
+      <option value="widget"<?= $sel($t['consent_source'], 'widget') ?>>The chat widget asks the visitor</option>
       <option value="wp_consent_api"<?= $sel($t['consent_source'], 'wp_consent_api') ?>>WordPress Consent API (your cookie banner plugin, “statistics” category)</option>
       <option value="custom"<?= $sel($t['consent_source'], 'custom') ?>>Custom JavaScript call (window.Signalpost.setAnalyticsConsent)</option></select>
       <p class="hint">Without a signal from the chosen source, the visitor's state stays “unknown” and no optional analytics run.</p></div>

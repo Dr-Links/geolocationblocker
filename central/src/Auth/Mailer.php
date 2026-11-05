@@ -39,6 +39,26 @@ final class Mailer
             case 'memory':
                 $this->sent[] = ['to' => $to, 'subject' => $subject, 'body' => $body];
                 return true;
+            case 'smtp':
+                $c = (array) $this->app->config->get('mail.smtp', []);
+                $data = 'Date: ' . gmdate('D, d M Y H:i:s') . " +0000\r\n"
+                    . 'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . (parse_url((string) $this->app->config->get('app.url'), PHP_URL_HOST) ?: 'localhost') . ">\r\n"
+                    . 'To: <' . $to . ">\r\n"
+                    . 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
+                foreach ($headers as $k => $v) {
+                    $data .= $k === 'Content-Transfer-Encoding' ? "Content-Transfer-Encoding: base64\r\n" : "{$k}: {$v}\r\n";
+                }
+                $data .= "\r\n" . rtrim(chunk_split(base64_encode($body), 76, "\r\n"));
+                try {
+                    (new SmtpClient(
+                        (string) ($c['host'] ?? ''), (int) ($c['port'] ?? 465), (string) ($c['encryption'] ?? 'ssl'),
+                        (string) ($c['username'] ?? ''), (string) ($c['password'] ?? ''),
+                    ))->send($from, $to, $data);
+                    return true;
+                } catch (\Throwable $e) {
+                    $this->app->logger()->warning('SMTP delivery failed', ['reason' => $e->getMessage()]);
+                    return false;
+                }
             case 'file':
                 $dir = $this->app->config->get('paths.storage') . '/mail';
                 @mkdir($dir, 0750, true);

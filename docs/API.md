@@ -104,15 +104,28 @@ HTML routes (forms) cover websites, settings, members, invitations, blocks, priv
 
 ---
 
-## 4. Health
+## 4. Operator app (PWA) and push
+
+| Method & path | Auth | Notes |
+|---|---|---|
+| `GET /manifest.webmanifest` | public | Web app manifest (name from `app.name`). |
+| `GET /api/v1/push/key` | session | `{ public_key }` — VAPID application server key (base64url). |
+| `POST /api/v1/push/subscriptions` | session + CSRF | Body = `PushSubscription.toJSON()`; endpoint must be HTTPS on a known push service; `201`. |
+| `POST /api/v1/push/subscriptions/delete` | session + CSRF | `{ endpoint }` |
+| `POST /api/v1/push/test` | session + CSRF | Sends a test notification to the caller's devices: `{ delivered }`. |
+
+Notification payload (encrypted): `{ title, body, url, tag }`, where `url` is a
+same-origin path such as `/w/3/inbox?c=42`.
+
+## 5. Health
 
 `GET /api/v1/health` → `{ status: ok|degraded, database: ok|unavailable }`. Reveals no versions.
 
-## 5. Versioning and transport
+## 6. Versioning and transport
 
 The API is versioned in the path. Live updates use short polling with
 incremental cursors; clients back off exponentially on errors and poll less
 often in hidden tabs. Server-side message creation calls a
-`Chat\Transport\MessageNotifier` (no-op `PollingNotifier` today) so a push
-transport (WebSockets, queue workers) can be added without changing the
+`Chat\Transport\MessageNotifier` (`Push\PushNotifier`, which sends Web Push to
+operators' installed apps) so another transport (WebSockets, queue workers) can be added without changing the
 messaging code.

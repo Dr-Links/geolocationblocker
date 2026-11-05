@@ -1,7 +1,7 @@
 import { chromium } from 'playwright';
 import fs from 'node:fs';
 
-const { APP, CENTRAL_URL, WP_URL, PLUGIN_ZIP, CENTRAL_DB, DB_USER, DB_PASS } = process.env;
+const { APP, CENTRAL_URL, WP_URL, PLUGIN_ZIP, CENTRAL_DB, DB_USER, DB_PASS, CONFIG_TEMPLATE } = process.env;
 const results = [];
 const check = (name, cond, detail = '') => { results.push(!!cond); console.log(`  ${cond ? 'PASS' : 'FAIL'}  ${name}${!cond && detail ? ' — ' + detail : ''}`); };
 
@@ -13,13 +13,15 @@ check('a fresh application key is offered', !!key);
 check('no config.php shipped', !fs.existsSync(`${APP}/config/config.php`));
 
 // 2. Create config.php from the example exactly as the docs describe.
-let cfg = fs.readFileSync(`${APP}/config/config.example.php`, 'utf8');
-cfg = cfg.replace("'url' => 'https://chat.example.com'", `'url' => '${CENTRAL_URL}'`)
+let cfg = fs.readFileSync(`${APP}/config/${CONFIG_TEMPLATE}`, 'utf8');
+cfg = cfg.replace(/'url' => 'https:\/\/[a-z.]+'/, `'url' => '${CENTRAL_URL}'`)
   .replace("'key' => ''", `'key' => '${key}'`)
   .replace("'host' => 'localhost'", "'host' => '127.0.0.1'")
-  .replace("'name' => 'cpaneluser_signalpost'", `'name' => '${CENTRAL_DB}'`)
-  .replace("'user' => 'cpaneluser_spapp'", `'user' => '${DB_USER}'`)
-  .replace("'password' => ''", `'password' => '${DB_PASS}'`)
+  .replace(/'name' => '(cpaneluser_signalpost|u000000000_alllivechats)'/, `'name' => '${CENTRAL_DB}'`)
+  .replace(/'user' => '(cpaneluser_spapp|u000000000_alcadmin)'/, `'user' => '${DB_USER}'`)
+  .replace("'password' => '',", `'password' => '${DB_PASS}',`)
+  // Local test only: no mailbox here, keep mail on the local transport.
+  .replace("'transport' => 'smtp'", "'transport' => 'file'")
   // Local test only: no TLS on PHP's built-in server.
   .replace("'force_https' => true", "'force_https' => false");
 fs.writeFileSync(`${APP}/config/config.php`, cfg, { mode: 0o600 });

@@ -15,6 +15,14 @@ final class DashboardController extends Controller
     public function home(Request $request): Response
     {
         $workspaces = $this->app->get(Authorizer::class)->accessibleWorkspaces($this->user($request));
+        $go = $request->queryString('go');
+        if (in_array($go, ['inbox', 'live'], true)) {
+            foreach ($workspaces as $ws) {
+                if ($ws['role'] !== 'support') {
+                    return Response::redirect('/w/' . $ws['id'] . '/' . $go);
+                }
+            }
+        }
         $wanted = $request->queryInt('ws', 0, 0);
         foreach ($workspaces as $ws) {
             if ((int) $ws['id'] === $wanted) {

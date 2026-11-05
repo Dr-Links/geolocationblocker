@@ -103,7 +103,7 @@ final class WorkspaceService
         ]);
         $mailer = $this->app->get(Mailer::class);
         $url = $mailer->url('/invite/' . $token);
-        $mailer->send($email, 'You are invited to a Signalpost workspace', "You have been invited to join the Signalpost workspace \"{$ctx->workspaceName}\" as " . Roles::label($role) . ".\n\nAccept within 7 days:\n{$url}\n");
+        $mailer->send($email, 'You are invited to a ' . $this->app->config->get('app.name') . ' workspace', "You have been invited to join the Signalpost workspace \"{$ctx->workspaceName}\" as " . Roles::label($role) . ".\n\nAccept within 7 days:\n{$url}\n");
         $this->app->get(AuditLog::class)->workspace($ctx->workspaceId, $ctx->userId, 'member.invited', 'invitation', $id, ['role' => $role]);
         return $url;
     }

@@ -19,6 +19,8 @@ final class App
 {
     public readonly Clock $clock;
     private array $services = [];
+    /** @var list<callable> work to run after the response is sent */
+    private array $deferred = [];
     private ?Database $db = null;
     private ?Logger $logger = null;
     private ?Router $router = null;
@@ -52,6 +54,23 @@ final class App
     public function set(string $class, object $instance): void
     {
         $this->services[$class] = $instance;
+    }
+
+    /** Schedules work for after the response has been flushed to the client. */
+    public function defer(callable $task): void
+    {
+        $this->deferred[] = $task;
+    }
+
+    public function runDeferred(): void
+    {
+        while ($task = array_shift($this->deferred)) {
+            try {
+                $task();
+            } catch (\Throwable $e) {
+                $this->logger()->error('Deferred task failed', ['type' => $e::class]);
+            }
+        }
     }
 
     public function migrator(): Migrator
