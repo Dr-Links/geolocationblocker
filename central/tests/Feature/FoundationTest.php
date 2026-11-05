@@ -80,16 +80,20 @@ final class FoundationTest extends TestCase
     public function testFreshDatabaseRedirectsToInstaller(): void
     {
         // Simulate a brand-new installation by pointing at an empty schema-less table set.
-        $this->app->db()->pdo()->exec('RENAME TABLE users TO users_tmp_fresh');
+        $this->app->db()->pdo()->exec('RENAME TABLE users TO users_tmp_fresh, websites TO websites_tmp_fresh');
         try {
             $res = $this->request('GET', '/login');
             $this->assertSame(303, $res->status);
             $this->assertSame('/install', $res->headers['Location']);
             $api = $this->request('GET', '/api/v1/dashboard/w/1/conversations');
             $this->assertNotSame(303, $api->status, 'APIs never redirect to the installer');
+            $widget = $this->request('POST', '/api/v1/widget/' . str_repeat('0', 32) . '/session', ['json' => []]);
+            $this->assertSame(503, $widget->status);
+            $this->assertSame('not_installed', json_decode($widget->body, true)['error']['code']);
+            $this->assertStringNotContainsString('Unhandled exception', $this->logContents(), 'no error logged before installation');
             $this->assertStringStartsWith('application/json', $api->headers['Content-Type']);
         } finally {
-            $this->app->db()->pdo()->exec('RENAME TABLE users_tmp_fresh TO users');
+            $this->app->db()->pdo()->exec('RENAME TABLE users_tmp_fresh TO users, websites_tmp_fresh TO websites');
         }
     }
 

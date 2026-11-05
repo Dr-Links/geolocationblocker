@@ -210,6 +210,7 @@ final class PushNotificationTest extends TestCase
         $this->assertStringStartsWith('application/manifest+json', $res->headers['Content-Type']);
         $m = json_decode($res->body, true);
         $this->assertSame('All Live Chats', $m['name']);
+        $this->assertSame('AllLiveChats', $m['short_name'], 'fits under a home-screen icon without being cut off');
         $this->assertSame('standalone', $m['display']);
         $this->assertContains('maskable', array_column($m['icons'], 'purpose'));
         foreach ($m['icons'] as $icon) {

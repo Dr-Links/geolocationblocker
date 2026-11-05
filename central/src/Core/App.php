@@ -113,6 +113,9 @@ final class App
                 && !str_starts_with($request->path, '/api/') && $request->path !== '/install') {
                 return $this->applySecurityHeaders($request, Response::redirect('/install'));
             }
+            if (($e->errorInfo[0] ?? $e->getCode()) === '42S02' && str_starts_with($request->path, '/api/')) {
+                return $this->applySecurityHeaders($request, Response::jsonError(503, 'not_installed', 'This server has not been installed yet.'));
+            }
             $response = $this->unhandled($request, $e);
         } catch (\Throwable $e) {
             $response = $this->unhandled($request, $e);

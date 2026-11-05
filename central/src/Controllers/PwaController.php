@@ -16,9 +16,15 @@ final class PwaController extends Controller
     public function manifest(Request $request): Response
     {
         $name = (string) $this->app->config->get('app.name');
+        // Home-screen label: an explicit short name, else the name if it fits (~12 chars), else the name without spaces.
+        $short = (string) $this->app->config->get('app.short_name', '');
+        if ($short === '') {
+            $compact = str_replace(' ', '', $name);
+            $short = mb_strlen($name) <= 12 ? $name : (mb_strlen($compact) <= 12 ? $compact : mb_substr($compact, 0, 12));
+        }
         $manifest = [
             'name' => $name,
-            'short_name' => mb_substr($name, 0, 12),
+            'short_name' => $short,
             'description' => 'Answer website visitors from one inbox.',
             'id' => '/',
             'start_url' => '/?source=pwa',
