@@ -110,4 +110,22 @@ describe('activation codes', () => {
     expect(normalizeActivationCode('awm 2345-6789 abcd efgh')).toBe('23456789ABCDEFGH');
     expect(normalizeActivationCode('too short')).toBeNull();
   });
+
+  it('gives 6-month and 1-year access periods', async () => {
+    const [six] = await newCodes({ months: 6 });
+    const [year] = await newCodes({ months: 12 });
+    const a = await userWithToken('six.months@gmail.com');
+    const b = await userWithToken('one.year@gmail.com');
+    const days = async (token: string, code: string) => {
+      const r = await redeem(token, code);
+      expect(r.statusCode, r.body).toBe(200);
+      return Math.round((new Date(r.json().accessExpiresAt).getTime() - Date.now()) / 86_400_000);
+    };
+    expect(await days(a.token, six!.code)).toBeGreaterThanOrEqual(181);
+    expect(await days(a.token, six!.code).catch(() => 'used')).toBe('used');
+    const y = await days(b.token, year!.code);
+    expect(y === 365 || y === 366).toBe(true);
+    const list = (await admin.get('/admin/api/activation-codes?status=used')).json().codes.map((c: { months: number }) => c.months).sort((x: number, z: number) => x - z);
+    expect(list).toEqual([6, 12]);
+  });
 });

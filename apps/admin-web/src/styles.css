@@ -68,3 +68,4 @@ dd { margin: 0; }
 td.wrap { white-space: normal; min-width: 220px; }
 td.danger { color: var(--danger); }
 pre.codes{font-size:16px;letter-spacing:.05em;background:var(--bg, #f5f7fa);padding:10px;border-radius:6px;user-select:all}.small{font-size:12px}
+.segmented{display:flex;gap:6px;margin-top:4px}.segmented button{flex:1}

@@ -75,13 +75,13 @@ export const emails = {
   expiringSoon: (to: string, expiresAt: Date, tz: string) =>
     wrap(to, 'Your access period ends soon', [
       `Your access period ends on ${formatInZone(expiresAt, tz)}.`,
-      'Contact the administrator to renew before then. Your data is kept if access lapses.',
+      'To continue, get a new activation code from the administrator and enter it in the app (Home → Extend your access). The new period starts when the current one ends, so you lose no days. Your data is kept if access lapses.',
     ]),
 
   expired: (to: string) =>
     wrap(to, 'Your access period has ended', [
-      'Your access period has ended and your account is now suspended. Your stored data has not been deleted.',
-      'Contact the administrator to renew your access.',
+      'Your access period has ended and your account is paused. Your stored data has not been deleted.',
+      'To continue, get a new activation code from the administrator, sign in to the app and enter it under "Renew with a code". Everything will be as you left it.',
     ]),
 
   adminExpired: (to: string, userEmails: string[]) =>
