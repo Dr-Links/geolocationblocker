@@ -1,4 +1,6 @@
 import cookie from '@fastify/cookie';
+import { normalizeGmail } from '@app/shared';
+import { activationCodeHash, generateActivationCode, normalizeActivationCode } from '../lib/activation.js';
 import { recordDeletion } from '../backup/backup.js';
 import { normalizePattern } from '../routes/security.js';
 import fastifyStatic from '@fastify/static';
@@ -492,6 +494,67 @@ export async function buildAdminApi(deps: AdminDeps): Promise<FastifyInstance> {
       // Cascades to every user-owned table; their key is deleted too, and stored files are removed by housekeeping.
       await c.query(`DELETE FROM users WHERE id = $1 AND role = 'user'`, [id]);
       await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'user.deleted', targetType: 'user', targetId: id, targetUserId: id, ip: req.ip });
+    });
+    return { ok: true };
+  });
+
+  // ---- Activation codes ----
+  /** Creates codes. Each is shown in full only in this response; only a fingerprint is stored. */
+  app.post('/admin/api/activation-codes', guarded, async (req) => {
+    const body = parse(z.object({
+      count: z.number().int().min(1).max(50).default(1),
+      months: z.number().int().min(1).max(24).default(1),
+      note: z.string().trim().max(300).optional().transform((v) => v || null),
+      forEmail: z.string().trim().toLowerCase().max(254).optional().transform((v) => v || null),
+      expiresAt: z.string().datetime({ offset: true }).optional().nullable(),
+    }), req.body);
+    if (body.forEmail) {
+      const g = normalizeGmail(body.forEmail);
+      if (!g.ok) throw new AppError(400, 'validation_failed', 'Enter the Gmail address the customer registers with.');
+      body.forEmail = g.normalized;
+    }
+    if (body.forEmail && body.count > 1) throw new AppError(400, 'validation_failed', 'A code locked to an email address can only be created one at a time.');
+    if (body.expiresAt && new Date(body.expiresAt) <= new Date()) throw new AppError(400, 'validation_failed', 'The expiry date must be in the future.');
+    const created = await adminTx(req, async (c, a) => {
+      const out: Array<{ id: string; code: string }> = [];
+      for (let i = 0; i < body.count; i++) {
+        const code = generateActivationCode();
+        const norm = normalizeActivationCode(code)!;
+        const { rows } = await c.query<{ id: string }>(
+          `INSERT INTO activation_codes (code_hash, hint, months, note, for_email, expires_at, created_by) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`,
+          [activationCodeHash(norm), norm.slice(-4), body.months, body.note, body.forEmail, body.expiresAt ?? null, a.userId]);
+        out.push({ id: rows[0]!.id, code });
+      }
+      await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'activation_codes.created', targetType: 'platform', ip: req.ip,
+        details: { count: body.count, months: body.months, note: body.note, for_email: body.forEmail } });
+      return out;
+    });
+    return { codes: created, months: body.months };
+  });
+
+  app.get('/admin/api/activation-codes', guarded, async (req) => {
+    const q = parse(z.object({ status: z.enum(['all', 'unused', 'used', 'revoked']).default('all') }), req.query);
+    const { rows } = await db.query<{ id: string; hint: string; months: number; note: string | null; for_email: string | null; expires_at: Date | null;
+      created_at: Date; used_at: Date | null; used_by: string | null; used_by_email: string | null; revoked_at: Date | null }>(
+      `SELECT id, hint, months, note, for_email, expires_at, created_at, used_at, used_by, used_by_email, revoked_at FROM activation_codes
+        WHERE ($1 = 'all') OR ($1 = 'used' AND used_at IS NOT NULL) OR ($1 = 'revoked' AND revoked_at IS NOT NULL)
+           OR ($1 = 'unused' AND used_at IS NULL AND revoked_at IS NULL)
+        ORDER BY created_at DESC LIMIT 500`, [q.status]);
+    return {
+      codes: rows.map((r) => ({
+        id: r.id, hint: r.hint, months: r.months, note: r.note, forEmail: r.for_email, expiresAt: iso(r.expires_at), createdAt: iso(r.created_at),
+        usedAt: iso(r.used_at), usedBy: r.used_by, usedByEmail: r.used_by_email, revokedAt: iso(r.revoked_at),
+        status: r.revoked_at ? 'revoked' : r.used_at ? 'used' : r.expires_at && r.expires_at <= new Date() ? 'expired' : 'unused',
+      })),
+    };
+  });
+
+  app.post('/admin/api/activation-codes/:id/revoke', guarded, async (req) => {
+    const { id } = parse(uuidParam, req.params);
+    await adminTx(req, async (c, a) => {
+      const { rowCount } = await c.query(`UPDATE activation_codes SET revoked_at = now() WHERE id = $1 AND used_at IS NULL AND revoked_at IS NULL`, [id]);
+      if (!rowCount) throw new AppError(409, 'conflict', 'This code was already used or revoked.');
+      await audit(c, { actorType: 'admin', actorUserId: a.userId, action: 'activation_code.revoked', targetType: 'platform', ip: req.ip, details: { code_id: id } });
     });
     return { ok: true };
   });

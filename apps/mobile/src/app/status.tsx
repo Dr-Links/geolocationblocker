@@ -3,15 +3,16 @@ import { useState } from 'react';
 import { Body, Button, Card, Loading, Screen, Title, useTheme } from '../components/ui';
 import { useAuth } from '../lib/auth';
 import { formatDateTime } from '../lib/format';
+import { ActivationCodeForm } from '../components/ActivationCode';
 
 const COPY: Record<string, { title: string; body: string }> = {
   pending: {
     title: 'Waiting for approval',
-    body: 'Your email address is confirmed. The administrator needs to approve your account before you can use the app. You will receive an email at your Gmail address when it is approved.',
+    body: 'Your email address is confirmed. Enter the activation code you received from the administrator below, or wait for the administrator to approve your account (you will get an email at your Gmail address).',
   },
   expired: {
     title: 'Your access period has ended',
-    body: 'Your account is paused because its access period ended. Nothing has been deleted. Contact the administrator to renew; everything will be as you left it.',
+    body: 'Your account is paused because its access period ended. Nothing has been deleted. Enter a new activation code below, or contact the administrator to renew; everything will be as you left it.',
   },
   suspended: {
     title: 'Account suspended',
@@ -41,6 +42,7 @@ export default function Status() {
           <Body muted style={{ marginTop: 10 }}>Ended on {formatDateTime(a.accessExpiresAt, a.timezone)}.</Body>
         ) : null}
       </Card>
+      {a.displayStatus === 'pending' || a.displayStatus === 'expired' ? <ActivationCodeForm title={a.displayStatus === 'expired' ? 'Renew with a code' : 'Activate with a code'} /> : null}
       <Body muted>Signed in as {a.email}</Body>
       <Button title="Check again" busy={busy} onPress={async () => { setBusy(true); await reload(); setBusy(false); }} />
       <Button title="Sign out" variant="link" onPress={signOut} />

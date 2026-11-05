@@ -6,6 +6,7 @@ import { api, type StorageInfo } from '../../lib/api';
 import { Body, Button, Card, Screen, Title, useTheme } from '../../components/ui';
 import { useAuth } from '../../lib/auth';
 import { InstallApp } from '../../components/InstallApp';
+import { ActivationCodeForm } from '../../components/ActivationCode';
 import { daysLeft, formatDateTime } from '../../lib/format';
 
 export default function Home() {
@@ -69,6 +70,7 @@ export default function Home() {
         ))}
         <Button title="Add mailbox" onPress={() => router.push('/mailbox-add')} />
       </Card>
+      {left !== null && left <= 7 ? <ActivationCodeForm title="Extend your access" hint="Enter a new activation code: the new period starts when the current one ends." /> : null}
       <InstallApp />
       <Button title="Signed-in devices" variant="secondary" onPress={() => router.push('/sessions')} />
       <Button title="Change password" variant="secondary" onPress={() => router.push('/change-password')} />

@@ -204,6 +204,7 @@ export const api = {
   blockPattern: (pattern: string) => authed<{ pattern: string }>('POST', '/v1/blocked-senders', { pattern }),
   blockedSenders: () => authed<{ blocked: Array<{ pattern: string; createdAt: string }> }>('GET', '/v1/blocked-senders'),
   unblock: (pattern: string) => authed<void>('DELETE', `/v1/blocked-senders?pattern=${encodeURIComponent(pattern)}`),
+  activateWithCode: (code: string) => authed<{ account: Account; accessExpiresAt: string }>('POST', '/v1/me/activation-code', { code }),
   storage: () => authed<{ storage: StorageInfo }>('GET', '/v1/storage'),
   setStorageSettings: (bodyRetentionDays: number | null) => authed<{ storage: StorageInfo }>('PUT', '/v1/storage/settings', { bodyRetentionDays }),
   removeDeletedOnServer: () => authed<{ removed: number; storage: StorageInfo }>('POST', '/v1/storage/remove-deleted-on-server', { confirm: true }),

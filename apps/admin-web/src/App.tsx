@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { Audit } from './pages/Audit';
+import { ActivationCodes } from './pages/ActivationCodes';
 import { Blocklist } from './pages/Blocklist';
 import { Dashboard } from './pages/Dashboard';
 import { Login } from './pages/Login';
@@ -37,6 +38,7 @@ export function App() {
   else if (path === '/audit') page = <Audit />;
   else if (path === '/settings') page = <Settings />;
   else if (path === '/blocklist') page = <Blocklist />;
+  else if (path === '/codes') page = <ActivationCodes />;
   else page = <Dashboard />;
 
   const nav = (to: string, label: string) => (
@@ -47,7 +49,7 @@ export function App() {
     <div className="layout">
       <header className="topbar">
         <strong className="brand">AllWebMails · Admin</strong>
-        <nav>{nav('/', 'Dashboard')}{nav('/users', 'Users')}{nav('/blocklist', 'Blocklist')}{nav('/audit', 'Audit log')}{nav('/settings', 'Settings')}</nav>
+        <nav>{nav('/', 'Dashboard')}{nav('/users', 'Users')}{nav('/codes', 'Activation codes')}{nav('/blocklist', 'Blocklist')}{nav('/audit', 'Audit log')}{nav('/settings', 'Settings')}</nav>
         <span className="who">{me.email}
           <button className="linklike" onClick={async () => { await api.post('/auth/logout').catch(() => undefined); setMe(null); navigate('/'); }}>Sign out</button>
         </span>

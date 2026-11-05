@@ -1,4 +1,5 @@
 import { isValidTimeZone, type SessionInfo } from '@app/shared';
+import { activationCodeHash, normalizeActivationCode } from '../lib/activation.js';
 import { WEB_REFRESH_COOKIE } from './auth.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
@@ -80,6 +81,40 @@ export function registerMeRoutes(app: FastifyInstance, deps: Deps) {
     // RLS makes another user's session invisible, so it is indistinguishable from a missing one.
     if (!rowCount) throw new AppError(404, 'not_found', 'Session not found.');
     return reply.code(204).send();
+  });
+
+  /** Activates (or renews) the signed-in account with a code from the administrator. One code, one account, once. */
+  app.post('/v1/me/activation-code', { ...authed, config: { rateLimit: { max: 20, timeWindow: '15 minutes' } } }, async (req) => {
+    const body = parse(z.object({ code: z.string().trim().min(1).max(64) }), req.body);
+    const norm = normalizeActivationCode(body.code);
+    const uid = req.auth!.user.id;
+    const r = await withUser(db.api, uid, async (c) => {
+      // A malformed code still counts as a failed attempt.
+      const { rows } = await c.query<{ result: string; ends_at: Date | null; previous_status: string }>(
+        `SELECT * FROM app.redeem_activation_code($1)`, [activationCodeHash(norm ?? `invalid:${body.code}`)]);
+      const row = rows[0]!;
+      if (row.result === 'ok') {
+        await audit(c, { actorType: 'user', actorUserId: uid, action: 'account.activated_with_code', targetType: 'user', targetId: uid, targetUserId: uid, ip: req.ip,
+          details: { previous_status: row.previous_status, ends_at: row.ends_at } });
+      }
+      return row;
+    });
+    const messages: Record<string, [number, string, string]> = {
+      invalid: [400, 'invalid_token', 'That code is not valid. Check it and try again.'],
+      used: [409, 'conflict', 'This code has already been used. Each code works for one account only.'],
+      revoked: [409, 'conflict', 'This code has been cancelled. Ask the administrator for a new one.'],
+      expired: [409, 'conflict', 'This code has expired. Ask the administrator for a new one.'],
+      wrong_account: [409, 'conflict', 'This code was issued for a different account.'],
+      email_not_verified: [403, 'email_not_verified', 'Confirm your email address first (check your Gmail inbox), then enter the code.'],
+      not_eligible: [403, 'account_suspended', 'This account cannot be activated with a code. Contact the administrator.'],
+      too_many_attempts: [429, 'too_many_attempts', 'Too many wrong codes. Wait 15 minutes and try again.'],
+    };
+    if (r.result !== 'ok') {
+      const [status, code, message] = messages[r.result] ?? messages.invalid!;
+      throw new AppError(status, code as never, message);
+    }
+    const { rows } = await withUser(db.api, uid, (c) => c.query<UserRow>(`SELECT * FROM users WHERE id = app.current_user_id()`));
+    return { account: toAccount(rows[0]!), accessExpiresAt: r.ends_at!.toISOString() };
   });
 
   app.post('/v1/auth/logout', authed, async (req, reply) => {

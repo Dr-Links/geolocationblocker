@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createPool, type Db } from '../../src/lib/db.js';
 import { runSyncPass } from '../../src/sync/runner.js';
 import type { DiscoveryDeps } from '../../src/mail/discovery.js';
-import { PASSWORD, bearer, login, makeCtx, registerVerified, resetData, type Ctx } from '../helpers.js';
+import { PASSWORD, adminLogin, bearer, createAdmin, login, makeCtx, registerVerified, resetData, type Ctx } from '../helpers.js';
 import { MAIL_DIR, MAIL_PASSWORD, startSmtp } from '../mailserver/smtp.js';
 
 // End-to-end test of the real web app build (expo export --platform web) in Chromium.
@@ -128,4 +128,24 @@ describe.skipIf(!enabled)('web app (PWA) in a real browser', () => {
     expect(problems.filter((p) => /CSP blocked|pageerror/.test(p))).toEqual([]);
     await context.close();
   }, 120_000);
+
+  it('a waiting customer activates their account with a code', async () => {
+    await resetData(ctx);
+    await ctx.owner.query(`TRUNCATE app.activation_codes CASCADE`);
+    const { secret } = await createAdmin(ctx);
+    const admin = await adminLogin(ctx, secret);
+    const code = (await admin.post('/admin/api/activation-codes', { months: 1, note: 'e2e' })).json().codes[0].code as string;
+    await registerVerified(ctx, 'code.customer@gmail.com');
+    const context = await browser.newContext();
+    const page = await context.newPage();
+    await page.goto(BASE);
+    await page.getByLabel('Gmail address').fill('code.customer@gmail.com');
+    await page.getByLabel('Password').fill(PASSWORD);
+    await page.getByRole('button', { name: 'Sign in' }).click();
+    await expect.poll(() => page.getByText('Waiting for approval').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    await page.getByLabel('Activation code').fill(code.toLowerCase());
+    await page.getByRole('button', { name: 'Activate' }).click();
+    await expect.poll(() => page.getByText('Open all inboxes').count(), { timeout: 15_000 }).toBeGreaterThan(0);
+    await context.close();
+  }, 60_000);
 });
