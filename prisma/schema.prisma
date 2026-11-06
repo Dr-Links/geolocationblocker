@@ -1,0 +1,485 @@
+// AI Social Media Manager — Prisma schema
+// Tenant boundary: Workspace. Every tenant-owned model carries `workspaceId`
+// and an index on it so Phase 1 isolation guards can scope every query.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum PlatformRole {
+  USER
+  SUPER_ADMIN
+}
+
+enum WorkspaceRole {
+  WORKSPACE_ADMIN
+  MEMBER
+}
+
+enum SocialPlatform {
+  X
+  INSTAGRAM
+  FACEBOOK
+  LINKEDIN
+  TIKTOK
+  YOUTUBE
+}
+
+enum SocialAccountStatus {
+  CONNECTED
+  EXPIRED
+  ERROR
+  DISCONNECTED
+}
+
+enum PostStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHING
+  PUBLISHED
+  PARTIALLY_PUBLISHED
+  FAILED
+}
+
+enum PostTargetStatus {
+  PENDING
+  PUBLISHING
+  PUBLISHED
+  FAILED
+}
+
+enum GenerationType {
+  TEXT
+  IMAGE
+  VIDEO
+}
+
+enum GenerationStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+enum AiProvider {
+  MOCK
+  ANTHROPIC
+  OPENAI
+  GOOGLE
+  HUGGINGFACE
+}
+
+enum MediaKind {
+  IMAGE
+  VIDEO
+}
+
+enum MediaSource {
+  UPLOAD
+  GENERATED
+}
+
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  UNPAID
+}
+
+enum BillingInterval {
+  MONTH
+  YEAR
+}
+
+// ─── Auth (Auth.js) ─────────────────────────────────────────────────────────
+
+model User {
+  id            String       @id @default(cuid())
+  email         String       @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+  passwordHash  String?
+  platformRole  PlatformRole @default(USER)
+  disabledAt    DateTime?
+  lastLoginAt   DateTime?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  accounts           Account[]
+  sessions           Session[]
+  memberships        Membership[]
+  posts              Post[]
+  generationRequests GenerationRequest[]
+  mediaAssets        MediaAsset[]
+  auditLogs          AuditLog[]          @relation("AuditActor")
+  impersonations     AuditLog[]          @relation("AuditImpersonator")
+  compedSubscriptions Subscription[]     @relation("CompedBy")
+}
+
+/// OAuth accounts used to SIGN IN to the app (Google/GitHub).
+/// Not to be confused with SocialAccount (publishing targets).
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+/// Unused while sessions are JWT-based (required by Credentials provider);
+/// kept so the Prisma adapter contract is satisfied.
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// ─── Tenancy ────────────────────────────────────────────────────────────────
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  timezone  String   @default("UTC")
+  /// Default AI provider+model per content type, e.g.
+  /// { "TEXT": { "provider": "ANTHROPIC", "model": "..." }, "IMAGE": {...}, "VIDEO": {...} }
+  aiPreferences Json @default("{}")
+  suspendedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships         Membership[]
+  subscription        Subscription?
+  socialAccounts      SocialAccount[]
+  mediaAssets         MediaAsset[]
+  posts               Post[]
+  generationRequests  GenerationRequest[]
+  creditLedger        CreditLedgerEntry[]
+  providerCredentials ProviderCredential[]
+  auditLogs           AuditLog[]
+}
+
+model Membership {
+  id          String        @id @default(cuid())
+  userId      String
+  workspaceId String
+  role        WorkspaceRole @default(MEMBER)
+  createdAt   DateTime      @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workspaceId])
+  @@index([workspaceId])
+}
+
+// ─── Billing ────────────────────────────────────────────────────────────────
+
+model Plan {
+  id                 String          @id @default(cuid())
+  key                String          @unique // "free", "starter", "pro", "agency"
+  name               String
+  description        String?
+  priceCents         Int             @default(0)
+  currency           String          @default("usd")
+  interval           BillingInterval @default(MONTH)
+  stripePriceId      String?         @unique
+  /// Usage limits per billing period. -1 = unlimited.
+  maxPostsPerMonth   Int
+  monthlyCredits     Int
+  maxSocialAccounts  Int
+  maxMembers         Int
+  /// Feature flags, e.g. { "video": true, "byok": true, "recurring": true }
+  features           Json            @default("{}")
+  isActive           Boolean         @default(true)
+  isPublic           Boolean         @default(true)
+  sortOrder          Int             @default(0)
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  subscriptions Subscription[]
+}
+
+/// Mirrors Stripe subscription state. One per workspace.
+/// Comped workspaces have isComped=true and no Stripe charge.
+model Subscription {
+  id                   String             @id @default(cuid())
+  workspaceId          String             @unique
+  planId               String
+  status               SubscriptionStatus @default(ACTIVE)
+  isComped             Boolean            @default(false)
+  /// Partial comp: overrides plan limits/features (same shape as Plan limits + features).
+  compOverrides        Json?
+  compReason           String?
+  compedById           String?
+  compedAt             DateTime?
+  compExpiresAt        DateTime?
+  stripeCustomerId     String?            @unique
+  stripeSubscriptionId String?            @unique
+  currentPeriodStart   DateTime?
+  currentPeriodEnd     DateTime?
+  cancelAtPeriodEnd    Boolean            @default(false)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  plan      Plan      @relation(fields: [planId], references: [id])
+  compedBy  User?     @relation("CompedBy", fields: [compedById], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+}
+
+/// Append-only credit ledger. Balance = SUM(delta) for the workspace.
+model CreditLedgerEntry {
+  id                  String   @id @default(cuid())
+  workspaceId         String
+  delta               Int
+  reason              String // "period_grant" | "generation" | "refund" | "admin_adjustment"
+  generationRequestId String?  @unique
+  note                String?
+  createdAt           DateTime @default(now())
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  generationRequest GenerationRequest? @relation(fields: [generationRequestId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+}
+
+/// Processed Stripe webhook events — idempotency guard.
+model StripeEvent {
+  id          String   @id // Stripe event id
+  type        String
+  processedAt DateTime @default(now())
+}
+
+// ─── AI ─────────────────────────────────────────────────────────────────────
+
+/// Encrypted AI provider API keys.
+/// workspaceId = null → platform-owned key; set → workspace BYOK key.
+model ProviderCredential {
+  id           String     @id @default(cuid())
+  workspaceId  String?
+  provider     AiProvider
+  encryptedKey String     @db.Text
+  label        String?
+  lastUsedAt   DateTime?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  workspace Workspace? @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, provider])
+  @@index([provider])
+}
+
+model GenerationRequest {
+  id             String           @id @default(cuid())
+  workspaceId    String
+  userId         String?
+  type           GenerationType
+  prompt         String           @db.Text
+  options        Json             @default("{}")
+  provider       AiProvider
+  model          String?
+  status         GenerationStatus @default(QUEUED)
+  output         Json?
+  error          String?
+  creditsCharged Int              @default(0)
+  usedByok       Boolean          @default(false)
+  fallbackFrom   AiProvider?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  createdAt      DateTime         @default(now())
+
+  workspace   Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+  mediaAssets MediaAsset[]
+  ledgerEntry CreditLedgerEntry?
+
+  @@index([workspaceId, createdAt])
+  @@index([status])
+}
+
+model MediaAsset {
+  id                  String      @id @default(cuid())
+  workspaceId         String
+  createdById         String?
+  kind                MediaKind
+  source              MediaSource
+  storageKey          String // object key in S3/R2
+  mimeType            String
+  sizeBytes           Int?
+  width               Int?
+  height              Int?
+  durationMs          Int?
+  altText             String?
+  generationRequestId String?
+  createdAt           DateTime    @default(now())
+
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy         User?              @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  generationRequest GenerationRequest? @relation(fields: [generationRequestId], references: [id], onDelete: SetNull)
+  posts             PostMedia[]
+
+  @@index([workspaceId, createdAt])
+}
+
+// ─── Social publishing ──────────────────────────────────────────────────────
+
+/// A connected publishing target. Tokens are AES-256-GCM encrypted (src/lib/crypto.ts).
+model SocialAccount {
+  id                String              @id @default(cuid())
+  workspaceId       String
+  platform          SocialPlatform
+  /// true when connected via MockPublisher (no live credentials).
+  isMock            Boolean             @default(false)
+  externalId        String
+  displayName       String
+  handle            String?
+  avatarUrl         String?
+  accessTokenEnc    String              @db.Text
+  refreshTokenEnc   String?             @db.Text
+  tokenExpiresAt    DateTime?
+  scopes            String[]
+  status            SocialAccountStatus @default(CONNECTED)
+  lastHealthCheckAt DateTime?
+  lastError         String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+
+  workspace Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  targets   PostTarget[]
+
+  @@unique([workspaceId, platform, externalId])
+  @@index([workspaceId])
+}
+
+model Post {
+  id                String     @id @default(cuid())
+  workspaceId       String
+  authorId          String?
+  content           String     @db.Text
+  /// Per-platform content overrides: { "X": { "content": "..." }, ... }
+  platformOverrides Json       @default("{}")
+  status            PostStatus @default(DRAFT)
+  publishedAt       DateTime?
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+
+  workspace Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  author    User?         @relation(fields: [authorId], references: [id], onDelete: SetNull)
+  targets   PostTarget[]
+  media     PostMedia[]
+  schedule  PostSchedule?
+
+  @@index([workspaceId, status])
+  @@index([workspaceId, createdAt])
+}
+
+/// One row per (post, social account) — the per-platform publish result.
+model PostTarget {
+  id              String           @id @default(cuid())
+  postId          String
+  socialAccountId String
+  status          PostTargetStatus @default(PENDING)
+  externalPostId  String?
+  externalUrl     String?
+  attempts        Int              @default(0)
+  lastError       String?
+  publishedAt     DateTime?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  post          Post          @relation(fields: [postId], references: [id], onDelete: Cascade)
+  socialAccount SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+
+  @@unique([postId, socialAccountId])
+  @@index([status])
+}
+
+model PostMedia {
+  postId       String
+  mediaAssetId String
+  order        Int    @default(0)
+
+  post       Post       @relation(fields: [postId], references: [id], onDelete: Cascade)
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@id([postId, mediaAssetId])
+}
+
+model PostSchedule {
+  id             String   @id @default(cuid())
+  postId         String   @unique
+  /// Absolute instant (UTC). `timezone` is the user's intent, for display + recurrence.
+  scheduledAt    DateTime
+  timezone       String   @default("UTC")
+  /// RFC 5545 RRULE for recurring posts, e.g. "FREQ=WEEKLY;BYDAY=MO"
+  recurrenceRule String?
+  /// BullMQ job id for the delayed publish job.
+  jobId          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  post Post @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@index([scheduledAt])
+}
+
+// ─── Audit ──────────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  actorId        String?
+  impersonatorId String?
+  workspaceId    String?
+  action         String // e.g. "auth.signup", "admin.workspace.comp"
+  targetType     String?
+  targetId       String?
+  metadata       Json     @default("{}")
+  ip             String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+
+  actor        User?      @relation("AuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+  impersonator User?      @relation("AuditImpersonator", fields: [impersonatorId], references: [id], onDelete: SetNull)
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+}
