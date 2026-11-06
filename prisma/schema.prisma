@@ -7,8 +7,12 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  /// Runtime connection: a NON-superuser role that is a member of `app_user`,
+  /// so Postgres row-level security applies (see migrations/*_rls).
+  url       = env("DATABASE_URL")
+  /// Migrations/owner connection (table owner). Used by `prisma migrate`.
+  directUrl = env("DIRECT_DATABASE_URL")
 }
 
 // ─── Enums ──────────────────────────────────────────────────────────────────
@@ -103,27 +107,30 @@ enum BillingInterval {
 // ─── Auth (Auth.js) ─────────────────────────────────────────────────────────
 
 model User {
-  id            String       @id @default(cuid())
-  email         String       @unique
-  emailVerified DateTime?
-  name          String?
-  image         String?
-  passwordHash  String?
-  platformRole  PlatformRole @default(USER)
-  disabledAt    DateTime?
-  lastLoginAt   DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  id             String       @id @default(cuid())
+  email          String       @unique
+  emailVerified  DateTime?
+  name           String?
+  image          String?
+  passwordHash   String?
+  platformRole   PlatformRole @default(USER)
+  disabledAt     DateTime?
+  /// Bumped to invalidate all of a user's sessions (disable, password change, force sign-out).
+  sessionVersion Int          @default(0)
+  lastLoginAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
 
-  accounts           Account[]
-  sessions           Session[]
-  memberships        Membership[]
-  posts              Post[]
-  generationRequests GenerationRequest[]
-  mediaAssets        MediaAsset[]
-  auditLogs          AuditLog[]          @relation("AuditActor")
-  impersonations     AuditLog[]          @relation("AuditImpersonator")
-  compedSubscriptions Subscription[]     @relation("CompedBy")
+  accounts            Account[]
+  sessions            Session[]
+  memberships         Membership[]
+  posts               Post[]
+  generationRequests  GenerationRequest[]
+  mediaAssets         MediaAsset[]
+  auditLogs           AuditLog[]          @relation("AuditActor")
+  impersonations      AuditLog[]          @relation("AuditImpersonator")
+  compedSubscriptions Subscription[]      @relation("CompedBy")
+  invitationsSent     Invitation[]
 }
 
 /// OAuth accounts used to SIGN IN to the app (Google/GitHub).
@@ -171,16 +178,16 @@ model VerificationToken {
 // ─── Tenancy ────────────────────────────────────────────────────────────────
 
 model Workspace {
-  id        String   @id @default(cuid())
-  name      String
-  slug      String   @unique
-  timezone  String   @default("UTC")
+  id            String    @id @default(cuid())
+  name          String
+  slug          String    @unique
+  timezone      String    @default("UTC")
   /// Default AI provider+model per content type, e.g.
   /// { "TEXT": { "provider": "ANTHROPIC", "model": "..." }, "IMAGE": {...}, "VIDEO": {...} }
-  aiPreferences Json @default("{}")
-  suspendedAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  aiPreferences Json      @default("{}")
+  suspendedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   memberships         Membership[]
   subscription        Subscription?
@@ -191,6 +198,7 @@ model Workspace {
   creditLedger        CreditLedgerEntry[]
   providerCredentials ProviderCredential[]
   auditLogs           AuditLog[]
+  invitations         Invitation[]
 }
 
 model Membership {
@@ -207,29 +215,49 @@ model Membership {
   @@index([workspaceId])
 }
 
+/// Pending invite to join a workspace. Only the SHA-256 of the token is stored.
+model Invitation {
+  id          String        @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole @default(MEMBER)
+  tokenHash   String        @unique
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  revokedAt   DateTime?
+  createdAt   DateTime      @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invitedBy User?     @relation(fields: [invitedById], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId])
+  @@index([email])
+}
+
 // ─── Billing ────────────────────────────────────────────────────────────────
 
 model Plan {
-  id                 String          @id @default(cuid())
-  key                String          @unique // "free", "starter", "pro", "agency"
-  name               String
-  description        String?
-  priceCents         Int             @default(0)
-  currency           String          @default("usd")
-  interval           BillingInterval @default(MONTH)
-  stripePriceId      String?         @unique
+  id                String          @id @default(cuid())
+  key               String          @unique // "free", "starter", "pro", "agency"
+  name              String
+  description       String?
+  priceCents        Int             @default(0)
+  currency          String          @default("usd")
+  interval          BillingInterval @default(MONTH)
+  stripePriceId     String?         @unique
   /// Usage limits per billing period. -1 = unlimited.
-  maxPostsPerMonth   Int
-  monthlyCredits     Int
-  maxSocialAccounts  Int
-  maxMembers         Int
+  maxPostsPerMonth  Int
+  monthlyCredits    Int
+  maxSocialAccounts Int
+  maxMembers        Int
   /// Feature flags, e.g. { "video": true, "byok": true, "recurring": true }
-  features           Json            @default("{}")
-  isActive           Boolean         @default(true)
-  isPublic           Boolean         @default(true)
-  sortOrder          Int             @default(0)
-  createdAt          DateTime        @default(now())
-  updatedAt          DateTime        @updatedAt
+  features          Json            @default("{}")
+  isActive          Boolean         @default(true)
+  isPublic          Boolean         @default(true)
+  sortOrder         Int             @default(0)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
 
   subscriptions Subscription[]
 }

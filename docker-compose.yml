@@ -10,7 +10,9 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: socialai
     ports: ["5432:5432"]
-    volumes: [pgdata:/var/lib/postgresql/data]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./docker/postgres/init.sql:/docker-entrypoint-initdb.d/01-roles.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -30,7 +32,8 @@ services:
     build: .
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/socialai?schema=public
+      DATABASE_URL: postgresql://postpilot_app:postpilot_app@postgres:5432/socialai?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/socialai?schema=public
       REDIS_URL: redis://redis:6379
       SERVICE_NAME: app
     ports: ["3000:3000"]
@@ -48,7 +51,8 @@ services:
     command: ["npm", "run", "worker"]
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/socialai?schema=public
+      DATABASE_URL: postgresql://postpilot_app:postpilot_app@postgres:5432/socialai?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@postgres:5432/socialai?schema=public
       REDIS_URL: redis://redis:6379
       SERVICE_NAME: worker
     depends_on:

@@ -15,7 +15,14 @@ const providers: Provider[] = [
     async authorize(raw) {
       const user = await verifyCredentials(raw);
       if (!user) return null;
-      return { id: user.id, email: user.email, name: user.name, image: user.image, platformRole: user.platformRole };
+      return {
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        image: user.image,
+        platformRole: user.platformRole,
+        sessionVersion: user.sessionVersion,
+      };
     },
   }),
 ];

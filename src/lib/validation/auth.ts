@@ -24,3 +24,6 @@ export const signInSchema = z.object({
 
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+
+/** Signing up through an invite: the workspace already exists. */
+export const signUpWithInviteSchema = signUpSchema.omit({ workspaceName: true });

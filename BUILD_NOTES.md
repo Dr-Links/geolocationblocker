@@ -4,7 +4,56 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 0: Scaffold ✅ (awaiting review)
+## Phase 1: Multi-tenancy ✅ (awaiting review)
+
+### Defaults I chose for your open questions (change any time)
+- **Email provider:** not chosen yet, so `ConsoleMailer` logs emails (bodies only outside production). Since nothing is actually sent, **invite links are shown in the UI** for the admin to share. A real provider plugs into `src/server/mail/index.ts`.
+- **Brand:** "Postpilot" kept as the placeholder.
+- **Repo:** staying in `geolocationblocker`.
+
+### How isolation works (defense in depth)
+1. **Postgres row-level security is the enforcement layer** (`prisma/migrations/*_rls`). Every tenant table has a `tenant_isolation` policy keyed to the transaction-local setting `app.workspace_id`. `FORCE ROW LEVEL SECURITY` applies it to table owners too. Child tables (`PostTarget`, `PostMedia`, `PostSchedule`) are scoped through their parent post. Their `WITH CHECK` also verifies **every referenced row** (social account, media, generation) is in the same workspace, so cross-tenant linking is impossible even with a guessed id.
+2. **Fail closed:** with no workspace set, tenant tables look empty and writes are rejected.
+3. **Three DB entry points** (`src/lib/db.ts`):
+   - `tenantDb(workspaceId)` / `withTenantTx(workspaceId, fn)`: all in-app access. Each operation runs in a tiny transaction that first calls `set_config('app.workspace_id', …, true)`. The setting is transaction-local, so it's safe with pooled connections, including PgBouncer transaction mode (Neon pooler).
+   - `systemDb` / `withSystemTx(fn)`: trusted cross-tenant code only (auth/membership lookups, signup, admin console, invite tokens, seed, and later the worker). Sets `app.bypass_rls = 'on'`.
+   - `db` (raw): global tables only (User, Account, Plan, …) and the Auth.js adapter.
+4. **Two DB roles.** RLS is skipped for superusers and `BYPASSRLS` roles, so:
+   - `DATABASE_URL` = runtime role `postpilot_app` (member of `app_user`, not a superuser)
+   - `DIRECT_DATABASE_URL` = owner role, used only by `prisma migrate`
+
+   The migration creates the `app_user` group role and grants. **At boot (`src/instrumentation.ts`) the app refuses to start in production if `DATABASE_URL` would bypass RLS**, and warns in dev.
+5. **App layer on top:** `getTenantContext()` re-reads the user and membership from the DB on every request. A forged `pp_ws` cookie is ignored unless the user is really a member. `assertCan(ctx, permission)` checks the role matrix (`src/server/tenancy/permissions.ts`).
+6. **SUPER_ADMIN gate:** middleware does a coarse check on the JWT. `/admin` re-checks the DB in the layout **and** in every page (`requireSuperAdmin()`).
+
+### Trade-off to be aware of
+- The bypass is a session setting the app role is allowed to set. That's simpler than a second connection pool with a `BYPASSRLS` role, at the cost that application code (not SQL injection, since Prisma parametrizes) could bypass it. Every `systemDb` use is greppable and should be justified in review. If you want the stricter version (a separate pool and role for system access), it's a contained change in `src/lib/db.ts`.
+- Each `tenantDb` operation costs one extra round trip (`set_config`). Use `withTenantTx` to batch hot paths.
+
+### Other decisions
+- **Roles:** `WORKSPACE_ADMIN` manages workspace settings, members, billing, connected accounts and AI settings. `MEMBER` creates and publishes content and can view members. A workspace can never lose its last admin (demote/remove/leave is blocked). SUPER_ADMIN gets **no implicit access** to workspace content; that will come only through audited impersonation (Phase 6).
+- **Invitations:** a 256-bit random token, **only its SHA-256 is stored**, 7-day expiry, single use (claimed atomically), and it can only be accepted by the **matching email**. Re-inviting revokes the previous link. Signing up through an invite joins that workspace instead of creating a new one.
+- **Session revocation:** `User.sessionVersion` is copied into the JWT. Bumping it (or disabling the user) kills live sessions on the next request. Found and fixed a redirect loop: middleware trusted the still-valid JWT while the server rejected it. `/auth/revoked` now clears the cookie.
+- **Rate limiting** (Redis fixed window, `src/server/rate-limit.ts`): login 10 per 15 min per email and 50 per 15 min per IP; signup 5 per hour per IP; configurable by env. **Fails open** if Redis is down (logged), so an outage doesn't lock everyone out. Client IP comes from `X-Forwarded-For`, which assumes a trusted proxy in front.
+- **Multiple workspaces per user**, switchable from the sidebar. OAuth sign-ups and users who left their last workspace land on `/onboarding`.
+- **Suspended workspaces** (`Workspace.suspendedAt`) send non-admins to `/suspended`. The admin action that sets it arrives in Phase 6.
+- **Seed** now also creates a second tenant, "Globex Bakery" (`other@example.com`), with a private draft, to demonstrate isolation.
+
+### Tests added (all passing)
+- `tests/integration/tenant-isolation.test.ts`, **22 tests**. They deliberately write "buggy" queries (no filter, foreign ids, nested creates, raw SQL, moving rows between workspaces, linking across tenants) and assert the DB refuses. **Proven meaningful:** run as a superuser, 20 of the 22 fail.
+- `members.test.ts`: role rules, last-admin guard, cross-tenant member edits, the invite lifecycle (hash-only storage, single use, email binding, revoke, expiry, re-invite).
+- `rate-limit.test.ts` and `permissions.test.ts`. Signup via invite, including rollback on email mismatch.
+- E2E (12 total): forged workspace cookie, `/admin` gating (signed-out, non-admin, super admin), the full invite → signup → member-permissions flow, workspace create/switch, rename, session revocation and disable.
+- Totals: **69 unit/integration + 12 e2e.**
+
+### Stubbed / deferred
+- Plan limits on members (`maxMembers`) are enforced in Phase 2 with the other usage limits.
+- Admin console is read-only (workspace and user lists). Comp, suspend, disable and impersonate come in Phases 2 and 6.
+- Email verification and password reset still wait for an email provider.
+
+---
+
+## Phase 0: Scaffold ✅
 
 ### Stack (as specified; no deviations)
 | Concern | Choice | Version |
@@ -20,7 +69,7 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ### Decisions
 1. **Auth.js v5 is still published as a beta.** It's the version that supports the App Router properly; v4 doesn't fit the App Router well. Pinned to an exact version.
-2. **JWT sessions, not database sessions.** The Credentials provider requires JWT in Auth.js. The `Session` table stays in the schema so the adapter contract holds. **Consequence:** a user's `platformRole`/disabled state sits in the token until it expires (7 days). To limit the damage, `requireUserContext()` re-reads the user from the DB on every app render and rejects disabled users. Phase 1 will also refresh the role inside the `jwt` callback so middleware decisions use current data.
+2. **JWT sessions, not database sessions.** The Credentials provider requires JWT in Auth.js. The `Session` table stays in the schema so the adapter contract holds. The server re-reads the user from the DB on every request, and Phase 1 added `sessionVersion` for revocation, so a stale token can't keep access.
 3. **Prisma 6, not 7.** Prisma 7 makes driver adapters mandatory and moves the config. 6.19 is stable and well-supported. Upgrading later is mechanical. (The `package.json#prisma` deprecation warning comes from this.)
 4. **Full data model up front.** The whole schema from the spec is in the first migration, so later phases make only additive migrations. Every tenant-owned table has `workspaceId` and an index, ready for Phase 1 scoping.
 5. **Additions to the spec's data model:**

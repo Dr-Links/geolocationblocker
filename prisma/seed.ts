@@ -2,11 +2,12 @@
  * Seed: plans, SUPER_ADMIN, a demo workspace with mock social accounts and sample posts.
  * Idempotent — safe to re-run. Run with `npm run db:seed`.
  */
-import { PrismaClient, type SocialPlatform } from "@prisma/client";
+import type { SocialPlatform } from "@prisma/client";
 import { encryptSecret } from "../src/lib/crypto";
 import { hashPassword } from "../src/lib/password";
+import { db as rawDb, systemDb as db } from "../src/lib/db";
 
-const db = new PrismaClient();
+// The seed is trusted system code: it writes across tenants, so it uses systemDb (RLS bypass).
 
 const PLANS = [
   { key: "free", name: "Free", priceCents: 0, maxPostsPerMonth: 10, monthlyCredits: 20, maxSocialAccounts: 2, maxMembers: 1,
@@ -135,12 +136,31 @@ async function main() {
     });
   }
 
+  // A second, unrelated tenant to demonstrate isolation: demo@ cannot see it.
+  const other = await db.user.upsert({
+    where: { email: "other@example.com" },
+    update: {},
+    create: { email: "other@example.com", name: "Other Owner", passwordHash: await hashPassword(demoPassword) },
+  });
+  await db.workspace.deleteMany({ where: { slug: "globex-bakery" } });
+  await db.workspace.create({
+    data: {
+      name: "Globex Bakery",
+      slug: "globex-bakery",
+      memberships: { create: { userId: other.id, role: "WORKSPACE_ADMIN" } },
+      subscription: { create: { planId: plans.free!.id } },
+      posts: { create: [{ content: "Globex private draft: do not leak", authorId: other.id }] },
+    },
+  });
+
   await db.auditLog.create({ data: { action: "system.seed", actorId: admin.id, workspaceId: ws.id, metadata: { posts: posts.length } } });
 
   console.log(`Seeded:
   SUPER_ADMIN  ${adminEmail} / ${process.env.SEED_ADMIN_PASSWORD ? "(SEED_ADMIN_PASSWORD)" : adminPassword}
   Demo user    demo@example.com / ${process.env.SEED_DEMO_PASSWORD ? "(SEED_DEMO_PASSWORD)" : demoPassword}
-  Workspace    Acme Coffee (comped Pro) — ${accounts.length} mock accounts, ${posts.length} posts
+  Other owner  other@example.com / (same as demo password)
+  Workspaces   Acme Coffee (comped Pro): ${accounts.length} mock accounts, ${posts.length} posts
+               Globex Bakery (Free): separate tenant, 1 private draft
   Plans        ${PLANS.map((p) => p.key).join(", ")}`);
 }
 
@@ -149,4 +169,4 @@ main()
     console.error(err);
     process.exit(1);
   })
-  .finally(() => db.$disconnect());
+  .finally(() => rawDb.$disconnect());

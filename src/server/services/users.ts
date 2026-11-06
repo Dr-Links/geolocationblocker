@@ -1,10 +1,11 @@
-import { Prisma, WorkspaceRole } from "@prisma/client";
-import { db } from "@/lib/db";
-import { hashPassword, verifyPassword } from "@/lib/password";
-import { slugify } from "@/lib/utils";
-import { signInSchema, signUpSchema, type SignUpInput } from "@/lib/validation/auth";
-import { recordAudit } from "./audit";
+import { Prisma } from "@prisma/client";
 import { randomBytes } from "node:crypto";
+import { db, withSystemTx } from "@/lib/db";
+import { hashPassword, verifyPassword } from "@/lib/password";
+import { signInSchema, signUpSchema, signUpWithInviteSchema } from "@/lib/validation/auth";
+import { recordAudit } from "./audit";
+import { acceptInvitationTx } from "./members";
+import { createWorkspaceForUser } from "./workspaces";
 
 export class EmailTakenError extends Error {
   constructor() {
@@ -12,43 +13,29 @@ export class EmailTakenError extends Error {
   }
 }
 
-async function uniqueSlug(tx: Prisma.TransactionClient, name: string) {
-  const base = slugify(name) || "workspace";
-  for (let i = 0; i < 5; i++) {
-    const slug = i === 0 ? base : `${base}-${randomBytes(3).toString("hex")}`;
-    if (!(await tx.workspace.findUnique({ where: { slug }, select: { id: true } }))) return slug;
-  }
-  return `${base}-${randomBytes(6).toString("hex")}`;
-}
+export type RegisterInput =
+  | { name: string; email: string; password: string; workspaceName: string; inviteToken?: undefined }
+  | { name: string; email: string; password: string; workspaceName?: string; inviteToken: string };
 
 /**
- * Creates a user, their first workspace (as WORKSPACE_ADMIN), and a subscription
- * on the default "free" plan if one exists. Atomic.
+ * Create a user, atomically with either:
+ *  - a new workspace they administer (normal signup), or
+ *  - membership in the workspace they were invited to (invite signup).
  */
-export async function registerUser(input: SignUpInput) {
-  const data = signUpSchema.parse(input);
+export async function registerUser(input: RegisterInput) {
+  const data = input.inviteToken
+    ? { ...signUpWithInviteSchema.parse(input), workspaceName: undefined }
+    : signUpSchema.parse(input);
   const passwordHash = await hashPassword(data.password);
 
   try {
-    return await db.$transaction(async (tx) => {
-      const user = await tx.user.create({
-        data: { email: data.email, name: data.name, passwordHash },
-      });
-      const workspace = await tx.workspace.create({
-        data: {
-          name: data.workspaceName,
-          slug: await uniqueSlug(tx, data.workspaceName),
-          memberships: { create: { userId: user.id, role: WorkspaceRole.WORKSPACE_ADMIN } },
-        },
-      });
-      const freePlan = await tx.plan.findUnique({ where: { key: "free" } });
-      if (freePlan) {
-        await tx.subscription.create({ data: { workspaceId: workspace.id, planId: freePlan.id } });
-      }
-      await recordAudit(
-        { action: "auth.signup", actorId: user.id, workspaceId: workspace.id, targetType: "User", targetId: user.id },
-        tx,
-      );
+    return await withSystemTx(async (tx) => {
+      const user = await tx.user.create({ data: { email: data.email, name: data.name, passwordHash } });
+      await recordAudit({ action: "auth.signup", actorId: user.id, targetType: "User", targetId: user.id }, tx);
+
+      const workspace = input.inviteToken
+        ? await acceptInvitationTx(tx, { userId: user.id, email: user.email, token: input.inviteToken })
+        : await createWorkspaceForUser(user.id, { name: data.workspaceName! }, tx);
       return { user, workspace };
     });
   } catch (err) {

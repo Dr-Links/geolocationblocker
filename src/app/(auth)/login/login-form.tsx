@@ -2,8 +2,8 @@
 
 import { useActionState } from "react";
 import { Button } from "@/components/ui/button";
+import { Field, FormMessage } from "@/components/forms/field";
 import { signInAction, type FormState } from "../actions";
-import { Field } from "../field";
 
 export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(signInAction, {});
@@ -14,7 +14,7 @@ export function LoginForm({ callbackUrl }: { callbackUrl?: string }) {
         defaultValue={state.values?.email} errors={state.fieldErrors?.email} />
       <Field name="password" label="Password" type="password" autoComplete="current-password" required
         errors={state.fieldErrors?.password} />
-      {state.error ? <p role="alert" className="text-sm text-destructive">{state.error}</p> : null}
+      <FormMessage state={state} />
       <Button type="submit" disabled={pending}>{pending ? "Signing in…" : "Log in"}</Button>
     </form>
   );

@@ -6,13 +6,13 @@ import { LoginForm } from "./login-form";
 
 export const metadata = { title: "Log in" };
 
-export default async function LoginPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string }> }) {
-  const { callbackUrl } = await searchParams;
+export default async function LoginPage({ searchParams }: { searchParams: Promise<{ callbackUrl?: string; reason?: string }> }) {
+  const { callbackUrl, reason } = await searchParams;
   return (
     <Card>
       <CardHeader>
         <CardTitle className="text-2xl">Log in</CardTitle>
-        <CardDescription>Welcome back.</CardDescription>
+        <CardDescription>{reason === "signed-out" ? "Your session has ended. Please log in again." : "Welcome back."}</CardDescription>
       </CardHeader>
       <CardContent className="grid gap-4">
         <LoginForm callbackUrl={callbackUrl ? safeRedirectPath(callbackUrl) : undefined} />

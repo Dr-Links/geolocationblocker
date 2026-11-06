@@ -32,7 +32,10 @@ jobs:
       CI: "true"
       NODE_ENV: test
       APP_URL: http://localhost:3100
-      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/socialai?schema=public
+      # Runtime role (RLS enforced) vs owner role (migrations).
+      DATABASE_URL: postgresql://postpilot_app:postpilot_app@localhost:5432/socialai?schema=public
+      DIRECT_DATABASE_URL: postgresql://postgres:postgres@localhost:5432/socialai?schema=public
+      TEST_DATABASE_URL: postgresql://postpilot_app:postpilot_app@localhost:5432/socialai?schema=public
       REDIS_URL: redis://localhost:6379
       AUTH_TRUST_HOST: "true"
       LOG_LEVEL: warn
@@ -46,13 +49,15 @@ jobs:
         run: |
           echo "AUTH_SECRET=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
           echo "ENCRYPTION_KEY=$(openssl rand -base64 32)" >> "$GITHUB_ENV"
+      - name: Create runtime DB role
+        run: psql "$DIRECT_DATABASE_URL" -f docker/postgres/init.sql
       - run: npm ci
       - run: npm run typecheck
       - run: npm run lint
       - name: Migrate + seed
         run: |
           npx prisma migrate deploy
-          npx prisma migrate diff --from-schema-datasource prisma/schema.prisma --to-schema-datamodel prisma/schema.prisma --exit-code \
+          npx prisma migrate diff --from-url "$DIRECT_DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code \
             || (echo "::error::schema.prisma has changes without a migration" && exit 1)
           npm run db:seed
       - name: Unit + integration tests

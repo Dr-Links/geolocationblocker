@@ -1,32 +1,17 @@
 import { expect, test } from "@playwright/test";
-
-const password = "e2ePassword123";
+import { PASSWORD, logIn, seed, signOut, signUp, uniqEmail } from "./helpers";
 
 test("sign up → empty dashboard → sign out → log in", async ({ page }) => {
-  const email = `e2e-${Date.now()}@e2e.local`;
-
-  await page.goto("/signup");
-  await page.getByLabel("Your name").fill("E2E User");
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByLabel("Workspace name").fill("E2E Workspace");
-  await page.getByRole("button", { name: "Create account" }).click();
-
-  await expect(page).toHaveURL(/\/dashboard$/);
+  const email = uniqEmail("auth");
+  await signUp(page, { email, workspace: "E2E Workspace" });
   await expect(page.getByTestId("workspace-name")).toHaveText("E2E Workspace");
   await expect(page.getByTestId("empty-state")).toBeVisible();
 
-  await page.getByRole("button", { name: "Sign out" }).click();
-  await expect(page).toHaveURL(/\/login/);
-
-  // Protected route redirects when signed out.
+  await signOut(page);
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/login/);
 
-  await page.getByLabel("Email").fill(email);
-  await page.getByLabel("Password").fill(password);
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
+  await logIn(page, email, PASSWORD);
   await expect(page.getByTestId("user-email")).toHaveText(email);
 });
 
@@ -50,11 +35,7 @@ test("validation errors on sign up", async ({ page }) => {
 });
 
 test("seeded super admin can log in and sees the seeded workspace", async ({ page }) => {
-  await page.goto("/login");
-  await page.getByLabel("Email").fill(process.env.SEED_ADMIN_EMAIL ?? "admin@example.com");
-  await page.getByLabel("Password").fill(process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!");
-  await page.getByRole("button", { name: "Log in" }).click();
-  await expect(page).toHaveURL(/\/dashboard$/);
-  await expect(page.getByText("Admin", { exact: true })).toBeVisible();
+  await logIn(page, seed.adminEmail, seed.adminPassword);
+  await expect(page.getByRole("link", { name: "Admin" })).toBeVisible();
   await expect(page.getByTestId("workspace-name")).toHaveText("Acme Coffee");
 });

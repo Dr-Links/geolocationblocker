@@ -1,20 +1,19 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { db } from "@/lib/db";
-import { requireUserContext } from "@/server/session/current";
+import { getTenantContext } from "@/server/tenancy/context";
 
 export const metadata = { title: "Dashboard" };
 
 export default async function DashboardPage() {
-  const { user, workspace } = await requireUserContext();
+  const ctx = await getTenantContext();
+  const { db, workspaceId, user } = ctx;
 
-  const [drafts, scheduled, published, accounts] = workspace
-    ? await Promise.all([
-        db.post.count({ where: { workspaceId: workspace.id, status: "DRAFT" } }),
-        db.post.count({ where: { workspaceId: workspace.id, status: "SCHEDULED" } }),
-        db.post.count({ where: { workspaceId: workspace.id, status: "PUBLISHED" } }),
-        db.socialAccount.count({ where: { workspaceId: workspace.id, status: "CONNECTED" } }),
-      ])
-    : [0, 0, 0, 0];
+  const [workspace, drafts, scheduled, published, accounts] = await Promise.all([
+    db.workspace.findUniqueOrThrow({ where: { id: workspaceId }, include: { subscription: { include: { plan: true } } } }),
+    db.post.count({ where: { workspaceId, status: "DRAFT" } }),
+    db.post.count({ where: { workspaceId, status: "SCHEDULED" } }),
+    db.post.count({ where: { workspaceId, status: "PUBLISHED" } }),
+    db.socialAccount.count({ where: { workspaceId, status: "CONNECTED" } }),
+  ]);
 
   const stats = [
     { label: "Drafts", value: drafts },
@@ -23,16 +22,17 @@ export default async function DashboardPage() {
     { label: "Connected accounts", value: accounts },
   ];
   const isEmpty = stats.every((s) => s.value === 0);
-  const plan = workspace?.subscription?.plan;
+  const plan = workspace.subscription?.plan;
 
   return (
     <div className="grid gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Welcome{user.name ? `, ${user.name}` : ""}</h1>
         <p className="text-sm text-muted-foreground">
-          {workspace?.name}
+          {workspace.name}
           {plan ? ` · ${plan.name} plan` : ""}
-          {workspace?.subscription?.isComped ? " (comped)" : ""}
+          {workspace.subscription?.isComped ? " (comped)" : ""}
+          {` · you are ${ctx.role === "WORKSPACE_ADMIN" ? "an admin" : "a member"}`}
         </p>
       </div>
 
@@ -41,7 +41,7 @@ export default async function DashboardPage() {
           <Card key={s.label}>
             <CardHeader className="pb-2">
               <CardDescription>{s.label}</CardDescription>
-              <CardTitle className="text-3xl tabular-nums">{s.value}</CardTitle>
+              <CardTitle className="text-3xl tabular-nums" data-testid={`stat-${s.label.toLowerCase().replace(/\s+/g, "-")}`}>{s.value}</CardTitle>
             </CardHeader>
           </Card>
         ))}

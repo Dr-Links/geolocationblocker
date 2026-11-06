@@ -1,8 +1,6 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
-import { db } from "@/lib/db";
+import type { Prisma } from "@prisma/client";
+import { systemDb, type Tx } from "@/lib/db";
 import { logger } from "@/lib/logger";
-
-type Tx = PrismaClient | Prisma.TransactionClient;
 
 export interface AuditEntry {
   action: string;
@@ -16,7 +14,14 @@ export interface AuditEntry {
   userAgent?: string | null;
 }
 
-export async function recordAudit(entry: AuditEntry, tx: Tx = db) {
-  await tx.auditLog.create({ data: { ...entry, metadata: entry.metadata ?? {} } });
-  logger.info({ audit: entry.action, actorId: entry.actorId, workspaceId: entry.workspaceId }, "audit");
+/**
+ * Append an audit row. Pass the surrounding transaction so the audit entry
+ * commits/rolls back with the change it describes. Without a tx it writes via
+ * systemDb (audit rows may be platform-level, with no workspace).
+ */
+export async function recordAudit(entry: AuditEntry, tx?: Tx) {
+  const data = { ...entry, metadata: entry.metadata ?? {} };
+  if (tx) await tx.auditLog.create({ data });
+  else await systemDb.auditLog.create({ data });
+  logger.info({ audit: entry.action, actorId: entry.actorId, workspaceId: entry.workspaceId, targetId: entry.targetId }, "audit");
 }
