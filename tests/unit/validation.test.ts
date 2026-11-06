@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { signInSchema, signUpSchema } from "@/lib/validation/auth";
 import { safeRedirectPath } from "@/lib/redirect";
 import { slugify } from "@/lib/utils";
@@ -32,6 +32,14 @@ describe("signInSchema", () => {
 });
 
 describe("safeRedirectPath", () => {
+  const original = process.env.APP_URL;
+  beforeEach(() => {
+    process.env.APP_URL = "http://localhost:3000"; // independent of the CI/e2e APP_URL
+  });
+  afterEach(() => {
+    process.env.APP_URL = original;
+  });
+
   it.each([
     ["/dashboard/posts", "/dashboard/posts"],
     ["//evil.com", "/dashboard"],
