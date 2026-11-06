@@ -6,6 +6,7 @@ import { ConflictError, ForbiddenError, NotFoundError } from "@/server/errors";
 import { getMailer } from "@/server/mail";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
+import { assertWithinLimit } from "@/server/billing/entitlements";
 import { recordAudit } from "./audit";
 
 export const INVITE_TTL_DAYS = 7;
@@ -97,50 +98,67 @@ export async function listPendingInvitations(ctx: TenantContext) {
 }
 
 /**
- * Invite an email to the workspace. Re-inviting the same email revokes the
- * previous pending invite. Returns the one-time link (only the hash is stored).
+ * Low-level: create (or re-issue) an invitation inside an existing transaction.
+ * Re-inviting the same email revokes the previous pending invite.
+ * Returns the one-time token; only its SHA-256 hash is stored.
  */
+export async function createInvitationTx(
+  tx: Tx,
+  args: { workspaceId: string; email: string; role: WorkspaceRole; invitedById: string | null; enforceSeatLimit?: boolean },
+) {
+  const existingMember = await tx.membership.findFirst({
+    where: { workspaceId: args.workspaceId, user: { email: args.email } },
+    select: { id: true },
+  });
+  if (existingMember) throw new ConflictError("That person is already a member of this workspace");
+
+  const revoked = await tx.invitation.updateMany({
+    where: { workspaceId: args.workspaceId, email: args.email, acceptedAt: null, revokedAt: null },
+    data: { revokedAt: new Date() },
+  });
+  // Pending invites reserve seats. Re-inviting the same person doesn't need a new seat.
+  if (args.enforceSeatLimit !== false && revoked.count === 0) {
+    await assertWithinLimit(tx, args.workspaceId, "maxMembers");
+  }
+
+  const token = randomBytes(32).toString("base64url");
+  const invitation = await tx.invitation.create({
+    data: {
+      workspaceId: args.workspaceId,
+      email: args.email,
+      role: args.role,
+      tokenHash: hashToken(token),
+      invitedById: args.invitedById,
+      expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
+    },
+    include: { workspace: { select: { name: true } } },
+  });
+  return { invitation, token, url: inviteUrl(token) };
+}
+
+export async function sendInvitationEmail(args: { email: string; workspaceName: string; role: WorkspaceRole; url: string }) {
+  await getMailer().send({
+    to: args.email,
+    subject: `You're invited to ${args.workspaceName} on Postpilot`,
+    text: `You've been invited to join ${args.workspaceName} as ${args.role === "WORKSPACE_ADMIN" ? "an admin" : "a member"}.\n\nAccept: ${args.url}\n\nThis link expires in ${INVITE_TTL_DAYS} days.`,
+  });
+}
+
+/** Invite an email to the workspace (workspace admin action). */
 export async function createInvitation(ctx: TenantContext, input: { email: string; role?: WorkspaceRole }) {
   assertCan(ctx, "members.manage");
   const { email, role } = inviteSchema.parse(input);
-  const token = randomBytes(32).toString("base64url");
 
-  const invitation = await withTenantTx(ctx.workspaceId, async (tx) => {
-    const existingMember = await tx.membership.findFirst({
-      where: { workspaceId: ctx.workspaceId, user: { email } },
-      select: { id: true },
-    });
-    if (existingMember) throw new ConflictError("That person is already a member of this workspace");
-
-    await tx.invitation.updateMany({
-      where: { workspaceId: ctx.workspaceId, email, acceptedAt: null, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    const inv = await tx.invitation.create({
-      data: {
-        workspaceId: ctx.workspaceId,
-        email,
-        role,
-        tokenHash: hashToken(token),
-        invitedById: ctx.userId,
-        expiresAt: new Date(Date.now() + INVITE_TTL_DAYS * 86_400_000),
-      },
-      include: { workspace: { select: { name: true } } },
-    });
+  const { invitation, url } = await withTenantTx(ctx.workspaceId, async (tx) => {
+    const res = await createInvitationTx(tx, { workspaceId: ctx.workspaceId, email, role, invitedById: ctx.userId });
     await recordAudit(
-      { action: "invitation.create", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Invitation", targetId: inv.id, metadata: { email, role } },
+      { action: "invitation.create", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Invitation", targetId: res.invitation.id, metadata: { email, role } },
       tx,
     );
-    return inv;
+    return res;
   });
 
-  const url = inviteUrl(token);
-  await getMailer().send({
-    to: email,
-    subject: `You're invited to ${invitation.workspace.name} on Postpilot`,
-    text: `You've been invited to join ${invitation.workspace.name} as ${role === "WORKSPACE_ADMIN" ? "an admin" : "a member"}.\n\nAccept: ${url}\n\nThis link expires in ${INVITE_TTL_DAYS} days.`,
-  });
-
+  await sendInvitationEmail({ email, workspaceName: invitation.workspace.name, role, url });
   return { invitation, url };
 }
 
@@ -195,11 +213,14 @@ export async function acceptInvitationTx(tx: Tx, args: { userId: string; email: 
   });
   if (claimed.count !== 1) throw new NotFoundError("This invitation is invalid or has expired");
 
-  await tx.membership.upsert({
+  const alreadyMember = await tx.membership.findUnique({
     where: { userId_workspaceId: { userId: args.userId, workspaceId: inv.workspaceId } },
-    update: {}, // already a member: keep existing role
-    create: { userId: args.userId, workspaceId: inv.workspaceId, role: inv.role },
   });
+  if (!alreadyMember) {
+    // The invite already reserved a seat; re-check members only, in case the plan was downgraded since.
+    await assertWithinLimit(tx, inv.workspaceId, "maxMembers", { countPendingInvites: false });
+    await tx.membership.create({ data: { userId: args.userId, workspaceId: inv.workspaceId, role: inv.role } });
+  }
   await recordAudit(
     { action: "invitation.accept", actorId: args.userId, workspaceId: inv.workspaceId, targetType: "Invitation", targetId: inv.id },
     tx,

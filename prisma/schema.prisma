@@ -245,7 +245,10 @@ model Plan {
   priceCents        Int             @default(0)
   currency          String          @default("usd")
   interval          BillingInterval @default(MONTH)
+  /// Provider price used for NEW checkouts (Stripe "price_..." or "mock_price_...").
+  /// Older prices stay in PlanPrice so grandfathered subscribers map back to this plan.
   stripePriceId     String?         @unique
+  stripeProductId   String?         @unique
   /// Usage limits per billing period. -1 = unlimited.
   maxPostsPerMonth  Int
   monthlyCredits    Int
@@ -259,7 +262,28 @@ model Plan {
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
 
-  subscriptions Subscription[]
+  subscriptions     Subscription[] @relation("BilledPlan")
+  compSubscriptions Subscription[] @relation("CompPlan")
+  prices            PlanPrice[]
+}
+
+/// Every price a plan has ever had. Stripe prices are immutable, so changing a plan's
+/// price creates a new row; subscribers on older prices keep paying what they signed up for.
+model PlanPrice {
+  id              String          @id @default(cuid())
+  planId          String
+  /// Stripe price id, or "mock_price_..." when billing runs on the mock provider.
+  providerPriceId String          @unique
+  priceCents      Int
+  currency        String          @default("usd")
+  interval        BillingInterval
+  isCurrent       Boolean         @default(true)
+  createdById     String?
+  createdAt       DateTime        @default(now())
+
+  plan Plan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId, isCurrent])
 }
 
 /// Mirrors Stripe subscription state. One per workspace.
@@ -270,6 +294,7 @@ model Subscription {
   planId               String
   status               SubscriptionStatus @default(ACTIVE)
   isComped             Boolean            @default(false)
+  compPlanId           String?
   /// Partial comp: overrides plan limits/features (same shape as Plan limits + features).
   compOverrides        Json?
   compReason           String?
@@ -278,14 +303,24 @@ model Subscription {
   compExpiresAt        DateTime?
   stripeCustomerId     String?            @unique
   stripeSubscriptionId String?            @unique
+  /// The provider price this subscription is billed at (may be an older, grandfathered price).
+  stripePriceId        String?
+  /// Price locked in at subscribe time, for revenue reporting (cents per interval).
+  priceCents           Int?
+  billingInterval      BillingInterval?
   currentPeriodStart   DateTime?
   currentPeriodEnd     DateTime?
   cancelAtPeriodEnd    Boolean            @default(false)
+  /// Timestamp of the newest provider event applied, to ignore out-of-order webhooks.
+  lastEventAt          DateTime?
   createdAt            DateTime           @default(now())
   updatedAt            DateTime           @updatedAt
 
   workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  plan      Plan      @relation(fields: [planId], references: [id])
+  /// The plan being BILLED (mirrors Stripe), or the free plan.
+  plan      Plan      @relation("BilledPlan", fields: [planId], references: [id])
+  /// When comped, this plan's entitlements apply instead of the billed plan.
+  compPlan  Plan?     @relation("CompPlan", fields: [compPlanId], references: [id])
   compedBy  User?     @relation("CompedBy", fields: [compedById], references: [id], onDelete: SetNull)
 
   @@index([planId])

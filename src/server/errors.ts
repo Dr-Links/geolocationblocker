@@ -25,3 +25,9 @@ export class RateLimitError extends AppError {
     super(`Too many attempts. Try again in ${Math.ceil(retryAfterSec / 60)} minute(s).`, "RATE_LIMITED", 429);
   }
 }
+/** A plan limit or feature gate blocked the action. 402 Payment Required. */
+export class LimitExceededError extends AppError {
+  constructor(message: string, readonly limit?: string) {
+    super(message, "LIMIT_EXCEEDED", 402);
+  }
+}

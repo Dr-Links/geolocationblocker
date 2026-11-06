@@ -4,7 +4,88 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 1: Multi-tenancy ✅ (awaiting review)
+## Phase 2: Billing ✅ (awaiting review)
+
+### Your direction: the admin sets and changes all prices
+- **Admin → Plans** (`/admin/plans`): create and edit plans. Each plan has a price, currency, monthly/yearly interval, four usage limits (-1 = unlimited), three feature flags (video, bring-your-own-key, recurring posts), plus active/visible flags and sort order.
+- The seed's four plans (Free/Starter/Pro/Agency) are **only starting defaults**. Re-seeding never overwrites a plan that already exists.
+- **Price changes are grandfathered.** Stripe prices can't be edited, so a change creates a new price (`PlanPrice` row) that becomes current for **new** checkouts. Existing subscribers keep paying what they signed up for until they switch plans. The editor shows how many subscribers that affects, and price history marks each price current or grandfathered.
+- **Limit and feature changes apply immediately** to every workspace on the plan. Entitlements are computed live; nothing is copied per workspace.
+- Guards:
+  - Plan keys are permanent.
+  - The `free` plan must stay $0 and active, since it's the fallback for lapsed workspaces.
+  - Plans are never deleted, only deactivated or hidden.
+- Every change is audit-logged with before/after values.
+
+### Architecture
+- **One billing-provider interface** (`src/server/billing/types.ts`) with two adapters:
+  - `StripeBillingProvider`: active when `STRIPE_SECRET_KEY` is set.
+  - `MockBillingProvider` (default): local checkout page (card 4242… succeeds, 4000…0002 is declined) and portal (switch plan, cancel/resume, and simulate renewal or payment failure).
+- **One writer for subscription state:** `applyBillingEvent()` (`sync.ts`). Stripe webhooks and the mock both produce the same normalized `BillingEvent`, so the mock exercises the production sync path. It is:
+  - **idempotent**: event ids are recorded in `StripeEvent`, so replays are no-ops;
+  - **order-safe**: `lastEventAt` makes it ignore events that arrive late;
+  - **loud on unknown prices**: it throws and rolls back, so Stripe retries instead of the event being silently dropped.
+- **Webhook** at `POST /api/webhooks/stripe`. It verifies the signature on the raw body, then re-fetches the subscription from Stripe instead of trusting partial payloads. It handles current Stripe API versions, where billing periods live on subscription items. Returns 5xx on errors so Stripe retries.
+- **Comp is stored apart from billing.** `Subscription.planId` is what's *billed* (it mirrors Stripe), and `compPlanId` + `compOverrides` is what the admin *granted*. A webhook therefore can never wipe a comp, and removing a comp reverts cleanly to the billed plan.
+- **Entitlement rule** (`limits.ts`, pure and unit-tested), in order:
+  1. active comp (not expired) → comp plan + overrides;
+  2. paid subscription that's ACTIVE, TRIALING or PAST_DUE (grace while Stripe retries the card) → billed plan;
+  3. otherwise → Free.
+
+  Setting a paid `planId` without a provider subscription grants nothing.
+- **Usage counting** happens in the database at check time (no counters to drift):
+  - **posts:** created in the current period;
+  - **accounts:** not disconnected;
+  - **seats:** members + pending invites;
+  - **credits:** plan allowance + the sum of ledger entries in the period.
+
+  The period is the Stripe billing period when one is active, otherwise the UTC calendar month. Credits don't roll over.
+- **Credit spending is race-free.** `consumeCredits()` takes a per-workspace Postgres advisory lock inside the tenant transaction. A test fires 25 concurrent 1-credit spends against a 10-credit allowance; exactly 10 succeed.
+
+### Comping and free accounts (first-class admin actions)
+- **Comp an existing workspace** (`/admin/workspaces/[id]`): choose a plan, optionally override any limit or feature (partial comp), give a reason (required, audited) and an optional expiry. You can also cancel their paid Stripe subscription at period end. "Remove comp" reverts to the billed plan.
+- **Create free account** (`/admin/accounts/new`): creates a comped workspace for an email. Existing users become its admin right away. New people get a single-use admin invitation link, shown to you since there's no email provider yet.
+- Comped workspaces see "Complimentary" on Billing with nothing to buy, and checkout refuses them.
+
+### Limits enforced now vs. later
+- **Now:** member seats, both when inviting and when accepting. Accepting re-checks in case the plan was downgraded in between.
+- **Ready, wired in later phases:**
+  - `assertWithinLimit(…, "maxPostsPerMonth")` → Phase 5
+  - `assertWithinLimit(…, "maxSocialAccounts")` → Phase 4
+  - `assertFeature(…, "video" | "byok" | "recurring")` → Phases 3/5
+  - `consumeCredits` / `refundCredits` → Phase 3
+
+  All of these are tested already.
+- **Product consequence of the default limits:** Free has 1 seat, so a new team must upgrade before inviting. Change Free's member limit in Admin → Plans if you'd rather allow small teams for free.
+
+### Admin revenue
+The admin overview shows MRR, ARR, and counts of paying, comped and past-due workspaces, plus revenue per plan. Yearly prices are normalized to monthly, and comped workspaces count as $0. The full analytics view is Phase 6.
+
+### Decisions / notes
+- **Prisma refused `migrate dev` and `migrate reset` in this non-interactive agent session** (a safety check against AI agents). I didn't bypass it. I generated the migration SQL with `prisma migrate diff` and applied it with `migrate deploy`. For a clean slate I created a **new local dev database (`socialai_dev`)** instead of resetting the old one. On your machine, `npm run db:migrate` works normally.
+- E2E tests now run against the **test database** (migrated and seeded automatically), so local dev data stays clean.
+- Mock checkout and portal links are HMAC-signed, expire after 1 hour, are bound to the user, and also re-check that the user is a workspace admin. Mock billing is disabled entirely once Stripe is configured.
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` isn't used yet: Stripe-hosted Checkout and Portal need only the secret key. It's kept for embedded Elements later.
+
+### Tests added
+- **Unit:** entitlement resolution (comp, paid, past-due grace, lapsed, expired comp, partial overrides, malformed overrides), periods, MRR math, signed tokens, Stripe event mapping, and real Stripe signature verification (offline).
+- **Integration** (21 tests):
+  - grandfathering end to end, admin guards;
+  - idempotent, stale and unknown-price events;
+  - the full mock lifecycle (declined → paid → switch → past due → cancel → renewal ends it) and checkout permissions;
+  - comps surviving webhooks, partial comps, free-account creation for new and existing users;
+  - seat limits, credit concurrency, unlimited plans, tenant isolation of the ledger, revenue.
+- **E2E** (6 new, 18 total): subscribe with a test card (decline first) and manage in the portal; admin creates a plan, sells it, raises the price and the old customer stays grandfathered; admin creates a free account that the owner claims; partial comp and removal; the free-plan seat block; revenue on the overview.
+- Totals: **117 unit/integration + 18 e2e, all passing.**
+
+### Stubbed / needs you
+- **Stripe test keys** to run real Stripe Checkout (see README "Stripe setup"). Until then everything runs on the mock.
+- **Configure the Stripe customer portal** in your Stripe dashboard (allow plan switching across your products), since Stripe hosts it.
+- No trials, coupons UI, taxes or invoices list yet. Stripe Checkout already accepts promotion codes you create in Stripe.
+
+---
+
+## Phase 1: Multi-tenancy ✅
 
 ### Defaults I chose for your open questions (change any time)
 - **Email provider:** not chosen yet, so `ConsoleMailer` logs emails (bodies only outside production). Since nothing is actually sent, **invite links are shown in the UI** for the admin to share. A real provider plugs into `src/server/mail/index.ts`.

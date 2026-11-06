@@ -35,3 +35,12 @@ export const seed = {
   adminPassword: process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!",
   demoPassword: process.env.SEED_DEMO_PASSWORD ?? "Demo12345!",
 };
+
+/** Subscribe the active workspace to a plan through the (mock) checkout. */
+export async function subscribe(page: Page, planKey: string, card = "4242 4242 4242 4242") {
+  await page.goto("/dashboard/billing");
+  await page.getByTestId(`plan-card-${planKey}`).getByRole("button").click();
+  await expect(page).toHaveURL(/\/billing\/mock\/checkout/);
+  await page.getByLabel("Card number").fill(card);
+  await page.getByRole("button", { name: /^Pay / }).click();
+}

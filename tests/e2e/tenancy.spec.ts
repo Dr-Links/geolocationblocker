@@ -1,5 +1,5 @@
 import { expect, test } from "@playwright/test";
-import { logIn, ownerDb, seed, signOut, signUp, uniqEmail, PASSWORD } from "./helpers";
+import { logIn, ownerDb, seed, signOut, signUp, subscribe, uniqEmail, PASSWORD } from "./helpers";
 
 test.afterAll(() => ownerDb.$disconnect());
 
@@ -46,6 +46,9 @@ test("invite flow: admin invites → invitee signs up via link → joins as memb
   const wsName = `Team ${Date.now()}`;
 
   await signUp(page, { email: ownerEmail, name: "Owner", workspace: wsName });
+  // Free is single-seat: upgrade to Starter (2 seats) before inviting.
+  await subscribe(page, "starter");
+  await expect(page).toHaveURL(/checkout=success/);
   await page.goto("/dashboard/settings/members");
   await page.getByLabel("Email").fill(inviteeEmail);
   await page.getByRole("button", { name: "Send invite" }).click();

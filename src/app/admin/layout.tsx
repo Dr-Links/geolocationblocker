@@ -6,10 +6,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const admin = await requireSuperAdmin();
   return (
     <div className="min-h-screen">
-      <header className="flex items-center justify-between border-b px-4 py-3">
-        <div className="flex items-center gap-3">
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3">
           <Link href="/admin" className="font-bold tracking-tight">Postpilot Admin</Link>
           <span className="rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">SUPER_ADMIN</span>
+          <nav className="flex gap-3 text-sm">
+            <Link href="/admin" className="hover:underline">Overview</Link>
+            <Link href="/admin/plans" className="hover:underline">Plans</Link>
+            <Link href="/admin/accounts/new" className="hover:underline">Create free account</Link>
+          </nav>
         </div>
         <div className="flex items-center gap-4 text-sm">
           <span className="text-muted-foreground">{admin.email}</span>

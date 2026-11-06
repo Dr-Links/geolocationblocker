@@ -67,7 +67,7 @@ describe("registerUser", () => {
 
 describe("registerUser via invitation", () => {
   it("joins the inviting workspace instead of creating one", async () => {
-    const A = await makeTenant("inviter");
+    const A = await makeTenant("inviter", { unlimitedSeats: true });
     const e = email("invited");
     const { url } = await createInvitation(ctxFor(A.admin.id, A.workspace.id, "WORKSPACE_ADMIN"), { email: e });
     const { user, workspace } = await registerUser({ name: "I", email: e, password: "longpassword1", inviteToken: url.split("/invite/")[1]! });
@@ -76,7 +76,7 @@ describe("registerUser via invitation", () => {
   });
 
   it("rolls back the user if the invite is for another email", async () => {
-    const A = await makeTenant("inviter2");
+    const A = await makeTenant("inviter2", { unlimitedSeats: true });
     const { url } = await createInvitation(ctxFor(A.admin.id, A.workspace.id, "WORKSPACE_ADMIN"), { email: email("someone") });
     const e = email("other");
     await expect(

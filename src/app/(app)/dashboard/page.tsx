@@ -1,4 +1,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { UsageMeters } from "@/components/billing/usage-meters";
+import { withTenantTx } from "@/lib/db";
+import { getEntitlements, getUsage } from "@/server/billing/entitlements";
 import { getTenantContext } from "@/server/tenancy/context";
 
 export const metadata = { title: "Dashboard" };
@@ -8,12 +12,17 @@ export default async function DashboardPage() {
   const { db, workspaceId, user } = ctx;
 
   const [workspace, drafts, scheduled, published, accounts] = await Promise.all([
-    db.workspace.findUniqueOrThrow({ where: { id: workspaceId }, include: { subscription: { include: { plan: true } } } }),
+    db.workspace.findUniqueOrThrow({ where: { id: workspaceId } }),
     db.post.count({ where: { workspaceId, status: "DRAFT" } }),
     db.post.count({ where: { workspaceId, status: "SCHEDULED" } }),
     db.post.count({ where: { workspaceId, status: "PUBLISHED" } }),
     db.socialAccount.count({ where: { workspaceId, status: "CONNECTED" } }),
   ]);
+
+  const { ent, usage } = await withTenantTx(workspaceId, async (tx) => {
+    const ent = await getEntitlements(tx, workspaceId);
+    return { ent, usage: await getUsage(tx, workspaceId, ent) };
+  });
 
   const stats = [
     { label: "Drafts", value: drafts },
@@ -22,7 +31,7 @@ export default async function DashboardPage() {
     { label: "Connected accounts", value: accounts },
   ];
   const isEmpty = stats.every((s) => s.value === 0);
-  const plan = workspace.subscription?.plan;
+  const plan = ent.plan;
 
   return (
     <div className="grid gap-6">
@@ -31,7 +40,7 @@ export default async function DashboardPage() {
         <p className="text-sm text-muted-foreground">
           {workspace.name}
           {plan ? ` · ${plan.name} plan` : ""}
-          {workspace.subscription?.isComped ? " (comped)" : ""}
+          {ent.source === "comp" ? " (complimentary)" : ""}
           {` · you are ${ctx.role === "WORKSPACE_ADMIN" ? "an admin" : "a member"}`}
         </p>
       </div>
@@ -46,6 +55,14 @@ export default async function DashboardPage() {
           </Card>
         ))}
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Plan usage</CardTitle>
+          <CardDescription><Link href="/dashboard/billing" className="underline underline-offset-4">View plans &amp; billing</Link></CardDescription>
+        </CardHeader>
+        <CardContent><UsageMeters ent={ent} usage={usage} /></CardContent>
+      </Card>
 
       {isEmpty ? (
         <Card data-testid="empty-state">

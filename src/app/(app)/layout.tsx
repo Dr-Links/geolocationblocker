@@ -11,7 +11,7 @@ const nav = [
   { href: "#", label: "Calendar", icon: CalendarDays, ready: false },
   { href: "#", label: "Posts", icon: FileText, ready: false },
   { href: "#", label: "Accounts", icon: Link2, ready: false },
-  { href: "#", label: "Billing", icon: CreditCard, ready: false },
+  { href: "/dashboard/billing", label: "Billing", icon: CreditCard, ready: true },
   { href: "/dashboard/settings/members", label: "Members", icon: Users, ready: true },
   { href: "/dashboard/settings", label: "Settings", icon: Settings, ready: true },
 ];

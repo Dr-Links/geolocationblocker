@@ -10,7 +10,11 @@ export const uniq = () => randomBytes(4).toString("hex");
 export const testEmail = (label: string) => `${label}-${uniq()}${TEST_DOMAIN}`;
 
 /** A workspace with an admin, one social account, one post (+target), one media asset. */
-export async function makeTenant(label: string) {
+/**
+ * `unlimitedSeats`: comp the workspace with unlimited members so tests about
+ * invitation mechanics aren't blocked by the free plan's seat limit.
+ */
+export async function makeTenant(label: string, opts: { unlimitedSeats?: boolean } = {}) {
   return withSystemTx(async (tx) => {
     const admin = await tx.user.create({ data: { email: testEmail(`${label}-admin`), name: `${label} admin` } });
     const workspace = await tx.workspace.create({
@@ -42,6 +46,16 @@ export async function makeTenant(label: string) {
         schedule: { create: { scheduledAt: new Date(Date.now() + 3_600_000) } },
       },
     });
+    if (opts.unlimitedSeats) {
+      const free = await tx.plan.upsert({
+        where: { key: "free" },
+        update: {},
+        create: { key: "free", name: "Free", maxPostsPerMonth: 10, monthlyCredits: 20, maxSocialAccounts: 2, maxMembers: 1 },
+      });
+      await tx.subscription.create({
+        data: { workspaceId: workspace.id, planId: free.id, isComped: true, compPlanId: free.id, compReason: "test fixture", compOverrides: { limits: { maxMembers: -1 } } },
+      });
+    }
     return { admin, workspace, account, media, post };
   });
 }

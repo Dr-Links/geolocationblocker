@@ -27,8 +27,17 @@ async function main() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!";
   const demoPassword = process.env.SEED_DEMO_PASSWORD ?? "Demo12345!";
 
+  // Plans are created once and then owned by the SUPER_ADMIN (Admin → Plans).
+  // Re-seeding never overwrites prices or limits an admin has changed.
   for (const p of PLANS) {
-    await db.plan.upsert({ where: { key: p.key }, update: p, create: p });
+    const existing = await db.plan.findUnique({ where: { key: p.key } });
+    if (existing) continue;
+    const plan = await db.plan.create({ data: { ...p, stripeProductId: `mock_prod_${p.key}` } });
+    if (plan.priceCents > 0) {
+      const priceId = `mock_price_${plan.id}_seed`;
+      await db.planPrice.create({ data: { planId: plan.id, providerPriceId: priceId, priceCents: plan.priceCents, interval: plan.interval } });
+      await db.plan.update({ where: { id: plan.id }, data: { stripePriceId: priceId } });
+    }
   }
   const plans = Object.fromEntries((await db.plan.findMany()).map((p) => [p.key, p]));
 
@@ -58,19 +67,20 @@ async function main() {
           { userId: admin.id, role: "WORKSPACE_ADMIN" },
         ],
       },
+      // Comped onto Pro by the platform admin; billed plan stays Free (no Stripe charge).
       subscription: {
         create: {
-          planId: plans.pro!.id,
+          planId: plans.free!.id,
           status: "ACTIVE",
           isComped: true,
+          compPlanId: plans.pro!.id,
           compReason: "Seeded demo workspace",
           compedById: admin.id,
           compedAt: new Date(),
-          currentPeriodStart: new Date(),
-          currentPeriodEnd: hoursFromNow(24 * 30),
         },
       },
-      creditLedger: { create: { delta: plans.pro!.monthlyCredits, reason: "period_grant", note: "seed" } },
+      // A few credits already spent this period, so the usage meter isn't empty.
+      creditLedger: { create: { delta: -37, reason: "generation", note: "seed" } },
     },
   });
 

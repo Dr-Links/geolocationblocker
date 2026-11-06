@@ -3,7 +3,7 @@
 Multi-tenant SaaS: generate social content with AI, schedule it, and auto-publish to connected accounts.
 Every external integration (AI providers, social platforms, Stripe, S3) **defaults to a mock**, so the app works end-to-end with no live credentials.
 
-> Status: **Phase 1 (multi-tenancy)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
+> Status: **Phase 2 (billing)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
 
 ## Quick start (Docker)
 
@@ -48,6 +48,23 @@ Isolation is enforced by **Postgres row-level security**, not just app code:
 On a managed host (e.g. Neon), create the runtime role once:
 ```sql
 CREATE ROLE postpilot_app LOGIN PASSWORD '<strong password>' IN ROLE app_user;  -- after running migrations
+```
+
+## Billing & plans
+- **You (SUPER_ADMIN) own pricing**: Admin → Plans to create/edit plans, prices, limits and features. Price changes apply to new subscribers; existing ones are grandfathered.
+- Admin → workspace page to **comp** a workspace (full or partial, optional expiry); Admin → Create free account to set up a comped account for someone new.
+- Without Stripe keys, billing runs on a **mock**: test cards `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 0002` (declined), plus a mock portal that can simulate renewals and failed payments.
+
+### Stripe setup (test mode)
+1. In the Stripe dashboard (test mode), copy the secret key into `STRIPE_SECRET_KEY`.
+2. Webhooks, either:
+   - locally: install the Stripe CLI and run the command below, then copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET`;
+   - deployed: add an endpoint `https://<your-domain>/api/webhooks/stripe` with the events `checkout.session.completed`, `customer.subscription.created/updated/deleted/paused/resumed`, `invoice.paid`, `invoice.payment_failed`.
+3. Restart the app, open **Admin → Plans → Sync plans to Stripe**. This creates the real Stripe products and prices for your plans.
+4. Stripe dashboard → Settings → Billing → **Customer portal**: enable it and allow switching between your plans' products.
+
+```bash
+stripe listen --forward-to localhost:3000/api/webhooks/stripe
 ```
 
 ## Scripts

@@ -24,7 +24,7 @@ beforeAll(async () => {
   await cleanupTestData();
 });
 beforeEach(async () => {
-  [A, B] = await Promise.all([makeTenant("alpha"), makeTenant("bravo")]);
+  [A, B] = await Promise.all([makeTenant("alpha", { unlimitedSeats: true }), makeTenant("bravo", { unlimitedSeats: true })]);
 });
 afterAll(async () => {
   await cleanupTestData();

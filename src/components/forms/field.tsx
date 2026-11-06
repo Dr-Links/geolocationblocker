@@ -10,7 +10,7 @@ export function Field({
 }: { name: string; label: string; errors?: string[]; hint?: string } & React.ComponentProps<"input">) {
   const errorId = `${name}-error`;
   return (
-    <div className="grid gap-2">
+    <div className="grid content-start gap-2">
       <Label htmlFor={props.id ?? name}>{label}</Label>
       <Input id={name} name={name} aria-invalid={!!errors?.length} aria-describedby={errors ? errorId : undefined} {...props} />
       {hint && !errors?.length ? <p className="text-xs text-muted-foreground">{hint}</p> : null}
