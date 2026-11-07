@@ -3,7 +3,7 @@
 Multi-tenant SaaS: generate social content with AI, schedule it, and auto-publish to connected accounts.
 Every external integration (AI providers, social platforms, Stripe, S3) **defaults to a mock**, so the app works end-to-end with no live credentials.
 
-> Status: **Phase 3 (AI generation)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
+> Status: **Phase 4 (social connections)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
 
 ## Quick start (Docker)
 
@@ -73,6 +73,12 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 - To go live, add a provider key in **Admin → AI** (encrypted) or as an env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HUGGINGFACE_API_TOKEN`). Each provider activates independently; the router falls back between configured providers on outages.
 - Workspaces choose default providers/models in **Settings → AI settings** and may add their own keys (plan feature "Bring your own AI keys"); those generations use no platform credits.
 - Credit cost per generation (default 1 text / 5 image / 25 video) is set in **Admin → AI**.
+
+## Social accounts
+- **Accounts** page connects X, Instagram, Facebook, LinkedIn, TikTok, YouTube. Without app credentials, a simulated consent screen is used (the full OAuth flow still runs).
+- To go live on a platform, create a developer app, register the redirect URI `${APP_URL}/api/social/callback/<platform>`, and set its env vars (see `.env.example`). That platform then uses the real API; others stay simulated.
+- Tokens are encrypted, refreshed automatically by the worker, and accounts are marked *Expired* when a platform revokes access.
+- In the composer, **Check for accounts** validates a draft against each platform's rules.
 
 ## Scripts
 | Script | What |

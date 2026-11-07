@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { PublicGeneration } from "@/server/ai/service";
-import { generateAction, saveDraftAction } from "./actions";
+import { generateAction, saveDraftAction, validateAction } from "./actions";
+import type { AccountValidation } from "@/server/social/accounts";
 
 type GenType = "TEXT" | "IMAGE" | "VIDEO";
 type Options = {
@@ -19,6 +20,7 @@ type Options = {
   creditsLeft: number | null;
 };
 type Media = { id: string; kind: "IMAGE" | "VIDEO"; mimeType: string };
+type TargetAccount = { id: string; platform: string; label: string; isMock: boolean; status: string };
 
 const TABS: { type: GenType; label: string; icon: typeof Type }[] = [
   { type: "TEXT", label: "Caption", icon: Type },
@@ -37,7 +39,7 @@ function MediaPreview({ m, className }: { m: { id: string; kind: string }; class
   );
 }
 
-export function Composer({ options, initial, recent }: { options: Options; initial: { postId?: string; content: string; media: Media[] }; recent: PublicGeneration[] }) {
+export function Composer({ options, initial, recent, accounts = [] }: { options: Options; initial: { postId?: string; content: string; media: Media[] }; recent: PublicGeneration[]; accounts?: TargetAccount[] }) {
   const router = useRouter();
   const [content, setContent] = useState(initial.content);
   const [media, setMedia] = useState<Media[]>(initial.media);
@@ -155,6 +157,7 @@ export function Composer({ options, initial, recent }: { options: Options; initi
               ))}
             </div>
           </div>
+          <TargetCheck accounts={accounts} content={content} mediaIds={media.map((m) => m.id)} />
           {saveMsg ? <p role={saveMsg.ok ? "status" : "alert"} className={cn("text-sm", saveMsg.ok ? "text-muted-foreground" : "text-destructive")}>{saveMsg.text}</p> : null}
           <Button onClick={save} disabled={saving || (!content.trim() && media.length === 0)} className="w-fit">
             {saving ? "Saving…" : "Save draft"}
@@ -303,6 +306,58 @@ function GenerationResult({ g, onUseText, onAppendText, onAttach, attachedIds }:
         {id && attachedIds.includes(id) ? "Attached" : "Attach to post"}
       </Button>
       {meta}
+    </div>
+  );
+}
+
+const PLATFORM_LABEL: Record<string, string> = { X: "X", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", LINKEDIN: "LinkedIn", TIKTOK: "TikTok", YOUTUBE: "YouTube" };
+
+/** Pick target accounts and validate the draft against each platform's publisher rules. */
+function TargetCheck({ accounts, content, mediaIds }: { accounts: TargetAccount[]; content: string; mediaIds: string[] }) {
+  const [selected, setSelected] = useState<string[]>([]);
+  const [results, setResults] = useState<AccountValidation[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [checking, start] = useTransition();
+  const mediaKey = mediaIds.join(",");
+  const selectedKey = selected.join(",");
+  // Any edit invalidates a previous check.
+  useEffect(() => setResults(null), [content, mediaKey, selectedKey]);
+
+  if (!accounts.length) {
+    return <p className="text-sm text-muted-foreground">Connect accounts in <a href="/dashboard/accounts" className="underline">Accounts</a> to check this post against each platform.</p>;
+  }
+  return (
+    <div className="grid gap-2 rounded-md border p-3" data-testid="target-check">
+      <Label>Check for accounts</Label>
+      <div className="flex flex-wrap gap-2">
+        {accounts.map((a) => (
+          <label key={a.id} className={cn("flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs", selected.includes(a.id) && "border-primary bg-accent")}>
+            <input type="checkbox" className="size-3.5" checked={selected.includes(a.id)} onChange={(e) => setSelected((s) => (e.target.checked ? [...s, a.id] : s.filter((x) => x !== a.id)))} />
+            {PLATFORM_LABEL[a.platform] ?? a.platform} · {a.label}{a.isMock ? " (mock)" : ""}
+          </label>
+        ))}
+      </div>
+      <Button size="sm" variant="outline" className="w-fit" disabled={!selected.length || checking}
+        onClick={() => start(async () => {
+          setError(null);
+          const r = await validateAction({ content, mediaAssetIds: mediaIds, accountIds: selected });
+          if (r.ok) setResults(r.results ?? []);
+          else setError(r.error ?? Object.values(r.fieldErrors ?? {}).flat()[0] ?? "Couldn't validate");
+        })}>
+        {checking ? "Checking…" : "Check post"}
+      </Button>
+      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
+      {results ? (
+        <ul className="grid gap-2 text-sm" data-testid="validation-results">
+          {results.map((r) => (
+            <li key={r.accountId} className="rounded-md bg-muted/50 p-2" data-testid={`validation-${r.platform}`}>
+              <p className="font-medium">{r.ok ? "✅" : "⛔"} {PLATFORM_LABEL[r.platform]} · {r.handle ?? r.displayName}{r.ok ? ": ready to publish" : ""}</p>
+              {r.errors.map((e) => <p key={e.code} className="text-destructive">• {e.message}</p>)}
+              {r.warnings.map((w) => <p key={w.code} className="text-muted-foreground">• {w.message}</p>)}
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </div>
   );
 }

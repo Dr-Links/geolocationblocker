@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getComposerOptions, listRecentGenerations, toPublicGeneration } from "@/server/ai/service";
 import { getPostWithMedia, listDrafts } from "@/server/services/posts";
+import { listAccounts } from "@/server/social/accounts";
 import { NotFoundError } from "@/server/errors";
 import { requireTenant } from "@/server/tenancy/context";
 import { Composer } from "./composer";
@@ -12,7 +13,7 @@ export const dynamic = "force-dynamic";
 export default async function ComposePage({ searchParams }: { searchParams: Promise<{ post?: string }> }) {
   const ctx = await requireTenant("content.create");
   const { post: postId } = await searchParams;
-  const [options, drafts, recent] = await Promise.all([getComposerOptions(ctx), listDrafts(ctx), listRecentGenerations(ctx, 8)]);
+  const [options, drafts, recent, accounts] = await Promise.all([getComposerOptions(ctx), listDrafts(ctx), listRecentGenerations(ctx, 8), listAccounts(ctx)]);
   const post = postId ? await getPostWithMedia(ctx, postId).catch((e) => (e instanceof NotFoundError ? null : Promise.reject(e))) : null;
 
   return (
@@ -30,6 +31,7 @@ export default async function ComposePage({ searchParams }: { searchParams: Prom
           media: post?.media.map((m) => ({ id: m.mediaAsset.id, kind: m.mediaAsset.kind, mimeType: m.mediaAsset.mimeType })) ?? [],
         }}
         recent={recent.map(toPublicGeneration)}
+        accounts={accounts.filter((a) => a.status !== "DISCONNECTED").map((a) => ({ id: a.id, platform: a.platform, label: a.handle ?? a.displayName, isMock: a.isMock, status: a.status }))}
       />
       <Card>
         <CardHeader><CardTitle>Recent drafts</CardTitle></CardHeader>

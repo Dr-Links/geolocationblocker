@@ -12,6 +12,7 @@ import { getEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { QUEUES, getQueue, redisConnection } from "@/lib/queues";
 import { processGeneration } from "@/server/ai/service";
+import { refreshExpiringTokens } from "@/server/social/accounts";
 
 const HEARTBEAT_KEY = "worker:heartbeat";
 
@@ -25,6 +26,11 @@ async function processSystemJob(job: Job) {
         redis.disconnect();
       }
       return { ok: true };
+    }
+    case "social-token-refresh": {
+      const r = await refreshExpiringTokens();
+      if (r.checked) logger.info(r, "social token refresh sweep");
+      return r;
     }
     default:
       throw new Error(`Unknown system job: ${job.name}`);
@@ -57,6 +63,8 @@ async function main() {
 
   // Repeatable heartbeat every minute (idempotent: same scheduler id on every boot).
   await getQueue(QUEUES.system).upsertJobScheduler("heartbeat", { every: 60_000 }, { name: "heartbeat" });
+  // Refresh social tokens expiring within 24h, so scheduled posts don't hit expired tokens.
+  await getQueue(QUEUES.system).upsertJobScheduler("social-token-refresh", { every: 30 * 60_000 }, { name: "social-token-refresh" });
 
   // Optional health endpoint for orchestrators (Docker/Fly/Render) and e2e tests.
   const healthPort = Number(process.env.WORKER_HEALTH_PORT ?? 0);

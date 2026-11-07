@@ -4,7 +4,85 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 3: AI generation ✅ (awaiting review)
+## Phase 4: Social connections + publishers ✅ (awaiting review)
+
+### What you can do
+- **Accounts** (`/dashboard/accounts`): connect X, Instagram, Facebook, LinkedIn, TikTok and YouTube; see status (Connected / Expired / Error / Disconnected), token expiry and last check; **Check** the connection, **Disconnect**, and **Reconnect**. Usage is shown against the plan's account limit.
+- With no platform app credentials, **Connect** opens a clearly labelled **simulated consent screen**. It then runs the *real* OAuth machinery: state + PKCE bound to your user and workspace, the callback, the code exchange, and encrypted token storage.
+- **Composer → "Check for accounts"**: pick target accounts and validate the draft against each platform's publisher rules, with errors and warnings per account. **This is the Phase 4 acceptance check.**
+
+### Architecture (as specified)
+- **`SocialPublisher` interface** (`src/server/social/types.ts`):
+  - `connect()` is split into `authorizeUrl()` (where to send the browser) and `connect()` (code → tokens + profiles);
+  - `refreshToken()`, `validateMedia(post)`, `publish(post)`, plus `checkHealth()`.
+- **`MockPublisher`** is the default:
+  - signed one-time auth codes; 1-hour tokens, so refresh actually gets exercised;
+  - realistic delays and validation;
+  - test hooks: `[mock:fail]` for a transient failure, `[mock:reject]` for a permanent one.
+- **Real adapters** activate only when their env credentials are set (`registry.ts`); otherwise the mock is used. Accounts connected through the mock stay on the mock even after credentials are added.
+
+  | Adapter | Auth | Publishing |
+  |---|---|---|
+  | `XPublisher` | OAuth 2.0 + PKCE | v2 tweets; one-shot image upload; chunked video upload with processing poll |
+  | `MetaPublisher` (one Meta app) | short → long-lived user token; **Page** tokens (don't expire) | FB: feed / photos / multi-photo / video. IG: container → processing poll → `media_publish`, reels and carousels |
+  | `LinkedInPublisher` | OpenID + `w_member_social` | versioned REST Posts / Images / Videos (`LINKEDIN_API_VERSION` configurable) |
+  | `TikTokPublisher` | PKCE | Direct Post, FILE_UPLOAD + status poll; `SELF_ONLY` privacy until the app passes TikTok's audit |
+  | `YouTubePublisher` | Google OAuth offline + consent (for a refresh token) | resumable upload |
+
+- **Platform rules are shared and pure** (`validation.ts`): text limits counted in code points (emoji = 1), image and video counts, mixing rules, formats, sizes, durations, Instagram aspect ratios (4:5 to 1.91:1), YouTube titles, hashtag warnings, and Instagram/Facebook "needs public media URLs" (which requires S3). Mock and real publishers validate identically; Phase 5's per-platform preview will reuse this.
+- **OAuth security:**
+  - state (192-bit random) + PKCE verifier live in an **HMAC-signed, 10-minute, httpOnly, `SameSite=Lax` cookie** scoped to `/api/social`;
+  - the callback re-checks the state, platform, **workspace and user**, so a callback can't be replayed into another workspace or account;
+  - the mock consent screen only ever redirects to our own callback (open-redirect guard) and checks the `Origin` header.
+- **Tokens:** encrypted at rest (AES-256-GCM).
+  - Refresh happens before use when a token expires within 5 minutes, plus a **worker sweep every 30 minutes** for tokens expiring within 24 hours.
+  - A rejected refresh marks the account **EXPIRED**; a transient failure marks it **ERROR**.
+  - Disconnect wipes the credentials but keeps the row, so post history stays intact.
+- **Limits:**
+  - Connected accounts are enforced in the callback, per account (Meta can return several Pages at once; any beyond the limit are skipped and reported).
+  - Reconnecting an existing account never needs a new slot. Re-activating a disconnected one does.
+  - Only workspace admins can connect or disconnect; members can view.
+
+### Bugs found and fixed this phase
+1. **The up-front limit check blocked reconnecting** an expired account at the limit. Start now only blocks when there's nothing on that platform to reconnect; the callback still enforces the limit, and a test proves a different account authorized through a "reconnect" is refused.
+2. **The EXPIRED status written by a failed refresh was rolled back** when the error propagated out of the transaction. Callers now catch inside the transaction (covered by the sweep test).
+3. **The mock consent screen's server-action redirect became a client-side soft navigation**, so the browser never actually loaded the OAuth callback. It's now a plain form POST + 303 to a route handler, like a real provider redirect (caught by e2e).
+4. The OAuth routes swallowed Next.js's redirect-to-login; they now rethrow control-flow errors.
+5. Connect tiles overflowed on phones.
+
+### ⚠️ Not yet verified against live platform APIs
+I couldn't reach the platforms' developer docs from this sandbox (its network blocks docs.x.com and learn.microsoft.com), and there are no app credentials yet. The real adapters follow each platform's documented OAuth and REST flows as I know them, and are unit-tested against a scripted fake `fetch` for authorize URLs, token exchange and publish request shapes. **Expect small adjustments on first live use**, most likely in X's v2 media upload paths and LinkedIn's version string. Version strings are env-configurable for that reason.
+
+### Tests added
+- **Unit (23):**
+  - every platform rule;
+  - PKCE; HTTP error mapping (401 → reconnect, 429/5xx → retryable);
+  - the mock publisher's connect, refresh, publish and failure hooks;
+  - each real adapter's authorize URL, code exchange and publish flow (X media + tweet, LinkedIn headers + `x-restli-id`, Meta page tokens + IG container polling, TikTok upload + status, YouTube resumable upload + refresh-token retention).
+- **Integration (16):**
+  - the full mock OAuth round trip with encrypted storage and audit; reconnect without duplicates;
+  - forged, mismatched and cancelled callbacks; cross-workspace replay;
+  - plan limits (start and callback, including the reconnect loophole); permissions;
+  - refresh-before-use; a revoked refresh persisting EXPIRED; the cross-tenant worker sweep; transient failures → ERROR;
+  - disconnect freeing the slot; tenant isolation; validation against target accounts.
+- **E2E (5):**
+  - connect two accounts, health check, disconnect, limit reached;
+  - cancelled consent; a forged callback;
+  - composer validation per account (invalidated by edits); members get a read-only view.
+- Totals: **210 unit/integration + 29 e2e, all passing.**
+
+### Stubbed / next
+- Publishing itself is wired and unit-tested; it gets **triggered by the Phase 5 scheduler** (worker-driven, with retries and backoff).
+- When Meta returns several Pages, all of them are connected (up to the limit) instead of showing a picker. A picker can come later if you want it.
+- Provider-side token revocation on disconnect isn't implemented; we only delete our copy.
+
+### Needs you
+- **Developer app credentials** for whichever platforms you want live (X, Meta, LinkedIn, TikTok, Google/YouTube). Each requires registering the redirect URI shown in `.env.example`. Several also need app review before posting publicly (Meta `instagram_content_publish`/`pages_manage_posts`, TikTok Direct Post audit, Google verification for YouTube upload).
+- **S3/R2** for Instagram/Facebook media, which those APIs fetch from a public URL.
+
+---
+
+## Phase 3: AI generation ✅
 
 ### What you can do
 - **Composer** (`/dashboard/compose`):
