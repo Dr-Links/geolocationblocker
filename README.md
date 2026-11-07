@@ -3,7 +3,7 @@
 Multi-tenant SaaS: generate social content with AI, schedule it, and auto-publish to connected accounts.
 Every external integration (AI providers, social platforms, Stripe, S3) **defaults to a mock**, so the app works end-to-end with no live credentials.
 
-> Status: **Phase 4 (social connections)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
+> Status: **Phase 5 (composer + scheduling)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
 
 ## Quick start (Docker)
 
@@ -79,6 +79,11 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 - To go live on a platform, create a developer app, register the redirect URI `${APP_URL}/api/social/callback/<platform>`, and set its env vars (see `.env.example`). That platform then uses the real API; others stay simulated.
 - Tokens are encrypted, refreshed automatically by the worker, and accounts are marked *Expired* when a platform revokes access.
 - In the composer, **Check for accounts** validates a draft against each platform's rules.
+
+## Composing & scheduling
+- **Composer**: pick accounts, write once (optionally customize per platform), attach AI media, and check the live per-platform previews. Then **Publish now**, **Schedule** (date, time, timezone, optional repeat) or **Add to queue**.
+- The **worker must be running** (`npm run worker:dev`, or the `worker` service in docker-compose): it publishes at the scheduled time, retries transient failures (1, 5, 15 minutes), and marks each platform's result.
+- **Posts** shows per-platform status, links and errors, with Retry failed. **Calendar** shows the month and holds your posting-queue time slots.
 
 ## Scripts
 | Script | What |

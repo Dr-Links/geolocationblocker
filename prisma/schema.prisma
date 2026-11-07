@@ -182,6 +182,8 @@ model Workspace {
   name          String
   slug          String    @unique
   timezone      String    @default("UTC")
+  /// Posting queue: weekly time slots in the workspace timezone, e.g. [{ "day": 1, "time": "09:00" }] (1=Mon).
+  queueSlots    Json      @default("[]")
   /// Default AI provider+model per content type, e.g.
   /// { "TEXT": { "provider": "ANTHROPIC", "model": "..." }, "IMAGE": {...}, "VIDEO": {...} }
   aiPreferences Json      @default("{}")
@@ -466,6 +468,8 @@ model Post {
   platformOverrides Json       @default("{}")
   status            PostStatus @default(DRAFT)
   publishedAt       DateTime?
+  /// Occurrences of one recurring post share a seriesId (the first post's id).
+  seriesId          String?
   createdAt         DateTime   @default(now())
   updatedAt         DateTime   @updatedAt
 
@@ -477,6 +481,7 @@ model Post {
 
   @@index([workspaceId, status])
   @@index([workspaceId, createdAt])
+  @@index([seriesId])
 }
 
 /// One row per (post, social account) — the per-platform publish result.
@@ -489,6 +494,9 @@ model PostTarget {
   externalUrl     String?
   attempts        Int              @default(0)
   lastError       String?
+  /// When a transient failure should be retried (exponential backoff).
+  nextAttemptAt   DateTime?
+  lastAttemptAt   DateTime?
   publishedAt     DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt

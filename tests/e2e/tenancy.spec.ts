@@ -6,7 +6,10 @@ test.afterAll(() => ownerDb.$disconnect());
 test("seeded demo user sees only their own tenant", async ({ page }) => {
   await logIn(page, "demo@example.com", seed.demoPassword);
   await expect(page.getByTestId("workspace-name")).toHaveText("Acme Coffee");
-  await expect(page.getByTestId("stat-scheduled")).toHaveText("3");
+  // Other e2e specs schedule posts in Acme too, so compare against the DB rather than a constant.
+  const acme = await ownerDb.workspace.findUniqueOrThrow({ where: { slug: "acme-coffee" } });
+  const scheduled = await ownerDb.post.count({ where: { workspaceId: acme.id, status: "SCHEDULED" } });
+  await expect(page.getByTestId("stat-scheduled")).toHaveText(String(scheduled));
   const options = await page.getByTestId("workspace-switcher").locator("option").allTextContents();
   expect(options).toEqual(["Acme Coffee"]);
 });

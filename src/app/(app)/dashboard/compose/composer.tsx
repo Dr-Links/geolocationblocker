@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { ImageIcon, Loader2, Sparkles, Type, Video, X } from "lucide-react";
+import { CalendarClock, Send, X as XIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,352 +11,270 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import type { PublicGeneration } from "@/server/ai/service";
-import { generateAction, saveDraftAction, validateAction } from "./actions";
-import type { AccountValidation } from "@/server/social/accounts";
+import type { TargetCheck } from "@/server/scheduling/posts";
+import { saveAndScheduleAction, savePostAction, unscheduleAction } from "./actions";
+import { AiPanel } from "./ai-panel";
+import { MediaPreview } from "./media-preview";
+import { PlatformPreview } from "./platform-preview";
+import type { ComposerMedia, ComposerOptions, TargetAccount } from "./types";
 
-type GenType = "TEXT" | "IMAGE" | "VIDEO";
-type Options = {
-  types: Record<GenType, { providers: { provider: string; label: string; byok: boolean; models: string[] }[]; cost: number; preference: { provider: string; model?: string }; allowed: boolean }>;
-  creditsLeft: number | null;
-};
-type Media = { id: string; kind: "IMAGE" | "VIDEO"; mimeType: string };
-type TargetAccount = { id: string; platform: string; label: string; isMock: boolean; status: string };
+const LABEL: Record<string, string> = { X: "X", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", LINKEDIN: "LinkedIn", TIKTOK: "TikTok", YOUTUBE: "YouTube" };
+const DAYS = [["MO", "Mon"], ["TU", "Tue"], ["WE", "Wed"], ["TH", "Thu"], ["FR", "Fri"], ["SA", "Sat"], ["SU", "Sun"]] as const;
+const textareaCls = "w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring";
 
-const TABS: { type: GenType; label: string; icon: typeof Type }[] = [
-  { type: "TEXT", label: "Caption", icon: Type },
-  { type: "IMAGE", label: "Image", icon: ImageIcon },
-  { type: "VIDEO", label: "Video", icon: Video },
-];
-
-const PLATFORMS = ["", "X", "INSTAGRAM", "FACEBOOK", "LINKEDIN", "TIKTOK", "YOUTUBE"];
-
-function MediaPreview({ m, className }: { m: { id: string; kind: string }; className?: string }) {
-  return m.kind === "VIDEO" ? (
-    <video src={`/api/media/${m.id}`} className={cn("rounded-md bg-muted object-cover", className)} controls muted playsInline preload="metadata" />
-  ) : (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={`/api/media/${m.id}`} alt="Generated media" className={cn("rounded-md bg-muted object-cover", className)} />
-  );
+export interface ComposerInitial {
+  postId?: string;
+  status?: string;
+  content: string;
+  overrides: Record<string, string>;
+  media: ComposerMedia[];
+  accountIds: string[];
+  scheduledLabel?: string | null;
+  repeatLabel?: string | null;
 }
 
-export function Composer({ options, initial, recent, accounts = [] }: { options: Options; initial: { postId?: string; content: string; media: Media[] }; recent: PublicGeneration[]; accounts?: TargetAccount[] }) {
+export function Composer({ options, initial, recent, accounts, workspaceTz, timezones, canRecur, defaultLocal, hasQueueSlots }: {
+  options: ComposerOptions;
+  initial: ComposerInitial;
+  recent: PublicGeneration[];
+  accounts: TargetAccount[];
+  workspaceTz: string;
+  timezones: string[];
+  canRecur: boolean;
+  defaultLocal: string;
+  hasQueueSlots: boolean;
+}) {
   const router = useRouter();
   const [content, setContent] = useState(initial.content);
-  const [media, setMedia] = useState<Media[]>(initial.media);
-  const [saveMsg, setSaveMsg] = useState<{ ok: boolean; text: string } | null>(null);
-  const [saving, startSave] = useTransition();
+  const [overrides, setOverrides] = useState<Record<string, string>>(initial.overrides);
+  const [media, setMedia] = useState<ComposerMedia[]>(initial.media);
+  const [selected, setSelected] = useState<string[]>(initial.accountIds);
+  const [tab, setTab] = useState<string>("ALL");
 
-  const [tab, setTab] = useState<GenType>("TEXT");
-  const cfg = options.types[tab];
-  const [prompt, setPrompt] = useState("");
-  const [provider, setProvider] = useState("AUTO");
-  const [model, setModel] = useState("");
-  const [platform, setPlatform] = useState("");
-  const [tone, setTone] = useState("");
-  const [variants, setVariants] = useState(2);
-  const [aspect, setAspect] = useState("1:1");
-  const [genError, setGenError] = useState<string | null>(null);
-  const [current, setCurrent] = useState<PublicGeneration | null>(null);
-  const [history, setHistory] = useState<PublicGeneration[]>(recent);
-  const [submitting, startGen] = useTransition();
-  const poll = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [mode, setMode] = useState<"now" | "at" | "queue">("at");
+  const [local, setLocal] = useState(defaultLocal);
+  const [tz, setTz] = useState(workspaceTz);
+  const [repeat, setRepeat] = useState<"" | "DAILY" | "WEEKLY" | "MONTHLY">("");
+  const [days, setDays] = useState<string[]>([]);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [checks, setChecks] = useState<TargetCheck[] | null>(null);
+  const [busy, start] = useTransition();
+  // The post id once saved. Tracked in state (not via navigation) so a failed schedule
+  // attempt on a NEW post doesn't remount the composer and lose its error list, and
+  // repeated attempts update the same draft instead of creating new ones.
+  const [postId, setPostId] = useState(initial.postId);
+  const rememberPost = (id: string | undefined) => {
+    if (!id || id === postId) return;
+    setPostId(id);
+    window.history.replaceState(null, "", `/dashboard/compose?post=${id}`);
+  };
 
-  useEffect(() => () => void (poll.current && clearTimeout(poll.current)), []);
-  useEffect(() => {
-    setProvider("AUTO");
-    setModel("");
-    setGenError(null);
-  }, [tab]);
+  const editable = !initial.status || ["DRAFT", "SCHEDULED", "FAILED"].includes(initial.status);
+  const targets = accounts.filter((a) => selected.includes(a.id));
+  const platforms = useMemo(() => [...new Set(targets.map((t) => t.platform))], [targets]);
+  const textFor = (p: string) => (overrides[p]?.trim() ? overrides[p]! : content);
+  const payload = () => ({
+    postId,
+    content,
+    platformOverrides: Object.fromEntries(Object.entries(overrides).filter(([p, v]) => v.trim() && platforms.includes(p)).map(([p, v]) => [p, { content: v }])),
+    mediaAssetIds: media.map((m) => m.id),
+    accountIds: selected,
+  });
 
-  const pending = current && (current.status === "QUEUED" || current.status === "RUNNING");
-
-  function track(id: string) {
-    const tick = async () => {
-      const res = await fetch(`/api/generations/${id}`, { cache: "no-store" });
-      if (!res.ok) return setGenError("Lost track of the generation. Refresh to see it.");
-      const g = (await res.json()) as PublicGeneration;
-      setCurrent(g);
-      if (g.status === "QUEUED" || g.status === "RUNNING") poll.current = setTimeout(tick, 1200);
-      else {
-        setHistory((h) => [g, ...h.filter((x) => x.id !== g.id)].slice(0, 8));
-        router.refresh(); // update credit counters
-      }
-    };
-    void tick();
-  }
-
-  function generate() {
-    setGenError(null);
-    startGen(async () => {
-      const res = await generateAction({
-        type: tab,
-        prompt,
-        provider: provider as never,
-        model: model || undefined,
-        options: tab === "TEXT" ? { platform: platform || undefined, tone: tone || undefined, variants } : { aspectRatio: aspect as never },
-      });
-      if (!res.ok || !res.id) {
-        setGenError(res.error ?? Object.values(res.fieldErrors ?? {}).flat()[0] ?? "Couldn't start the generation");
-        return;
-      }
-      setCurrent({ id: res.id, type: tab, status: "QUEUED" } as PublicGeneration);
-      track(res.id);
-    });
-  }
-
-  function attach(g: PublicGeneration) {
-    const id = g.output?.mediaAssetId;
-    if (!id || media.some((m) => m.id === id)) return;
-    setMedia((m) => [...m, { id, kind: g.type === "VIDEO" ? "VIDEO" : "IMAGE", mimeType: g.output?.mimeType ?? "" }]);
-  }
+  const activeText = tab === "ALL" ? content : (overrides[tab] ?? "");
+  const setActiveText = (v: string) => (tab === "ALL" ? setContent(v) : setOverrides((o) => ({ ...o, [tab]: v })));
 
   function save() {
-    setSaveMsg(null);
-    startSave(async () => {
-      const res = await saveDraftAction({ postId: initial.postId, content, mediaAssetIds: media.map((m) => m.id) });
-      setSaveMsg({ ok: !!res.ok, text: res.ok ? (res.message ?? "Saved.") : (res.error ?? "Couldn't save") });
-      if (res.ok && res.postId && !initial.postId) router.replace(`/dashboard/compose?post=${res.postId}`);
+    setMsg(null);
+    start(async () => {
+      const r = await savePostAction(payload());
+      setMsg({ ok: !!r.ok, text: r.ok ? "Draft saved." : (r.error ?? Object.values(r.fieldErrors ?? {}).flat()[0] ?? "Couldn't save") });
+      rememberPost(r.postId);
     });
   }
 
-  const modelSuggestions = cfg.providers.find((p) => p.provider === (provider === "AUTO" ? cfg.providers[0]?.provider : provider))?.models ?? [];
+  function schedule() {
+    setMsg(null);
+    setChecks(null);
+    start(async () => {
+      const r = await saveAndScheduleAction(payload(), {
+        mode,
+        localDateTime: mode === "at" ? local : undefined,
+        timezone: tz,
+        recurrence: repeat ? { freq: repeat, interval: 1, byDay: repeat === "WEEKLY" && days.length ? (days as never) : undefined } : null,
+      });
+      if (r.ok) {
+        router.push(`/dashboard/posts?tab=${mode === "now" ? "all" : "scheduled"}&notice=${mode === "now" ? "publishing" : "scheduled"}`);
+        return;
+      }
+      if (r.checks) setChecks(r.checks.filter((c) => !c.ok));
+      setMsg({ ok: false, text: r.error ?? Object.values(r.fieldErrors ?? {}).flat()[0] ?? "Couldn't schedule" });
+      rememberPost(r.postId);
+    });
+  }
+
+  function unschedule() {
+    start(async () => {
+      const r = await unscheduleAction(postId!);
+      setMsg({ ok: !!r.ok, text: r.ok ? r.message! : r.error! });
+      router.refresh();
+    });
+  }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-      {/* ── Draft ── */}
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle>{initial.postId ? "Edit draft" : "New post"}</CardTitle>
-          <CardDescription>Per-platform previews and scheduling arrive in the next phase.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4">
-          <div className="grid gap-2">
-            <Label htmlFor="post-content">Post text</Label>
-            <textarea
-              id="post-content"
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={8}
-              placeholder="What do you want to share?"
-              className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            />
-            <span className="text-right text-xs tabular-nums text-muted-foreground" data-testid="char-count">{content.length} characters</span>
-          </div>
-          <div className="grid gap-2">
-            <Label>Attached media</Label>
-            {media.length === 0 ? <p className="text-sm text-muted-foreground">Nothing attached yet. Generate an image or video and click Attach.</p> : null}
-            <div className="grid grid-cols-3 gap-2" data-testid="attached-media">
-              {media.map((m) => (
-                <div key={m.id} className="relative">
-                  <MediaPreview m={m} className="aspect-square w-full" />
-                  <button type="button" aria-label="Remove attachment" onClick={() => setMedia((x) => x.filter((y) => y.id !== m.id))}
-                    className="absolute right-1 top-1 rounded-full bg-background/90 p-1 shadow">
-                    <X className="size-3" />
-                  </button>
-                </div>
-              ))}
-            </div>
-          </div>
-          <TargetCheck accounts={accounts} content={content} mediaIds={media.map((m) => m.id)} />
-          {saveMsg ? <p role={saveMsg.ok ? "status" : "alert"} className={cn("text-sm", saveMsg.ok ? "text-muted-foreground" : "text-destructive")}>{saveMsg.text}</p> : null}
-          <Button onClick={save} disabled={saving || (!content.trim() && media.length === 0)} className="w-fit">
-            {saving ? "Saving…" : "Save draft"}
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="grid grid-cols-1 gap-6">
+      {initial.status && initial.status !== "DRAFT" ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-3 text-sm" data-testid="post-status-banner">
+          <span>
+            <Badge variant={initial.status === "FAILED" ? "destructive" : "outline"}>{initial.status.replace("_", " ").toLowerCase()}</Badge>{" "}
+            {initial.scheduledLabel ? `for ${initial.scheduledLabel}` : ""}{initial.repeatLabel ? ` · ${initial.repeatLabel}` : ""}
+          </span>
+          {initial.status === "SCHEDULED" ? <Button size="sm" variant="outline" onClick={unschedule} disabled={busy}>Unschedule</Button> : null}
+        </div>
+      ) : null}
 
-      {/* ── AI ── */}
-      <Card className="min-w-0">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Sparkles className="size-4" /> Generate with AI</CardTitle>
-          <CardDescription>
-            {options.creditsLeft === null ? "Unlimited credits" : <span data-testid="credits-left">{options.creditsLeft} credits left</span>} this period
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="grid grid-cols-1 gap-4">
-          <div className="flex gap-1 rounded-lg bg-muted p-1" role="tablist">
-            {TABS.map(({ type, label, icon: Icon }) => (
-              <button key={type} type="button" role="tab" aria-selected={tab === type} onClick={() => setTab(type)}
-                className={cn("flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm", tab === type ? "bg-background shadow-sm" : "text-muted-foreground")}>
-                <Icon className="size-4" /> {label}
-              </button>
-            ))}
-          </div>
-
-          {!cfg.allowed ? (
-            <p className="text-sm text-muted-foreground" data-testid="video-locked">AI video isn&apos;t included in your plan. <a href="/dashboard/billing" className="underline">Upgrade</a> to use it.</p>
-          ) : (
-            <>
-              <div className="grid gap-2">
-                <Label htmlFor="gen-prompt">{tab === "TEXT" ? "Brief" : "Describe the " + (tab === "IMAGE" ? "image" : "video")}</Label>
-                <textarea id="gen-prompt" value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={3}
-                  placeholder={tab === "TEXT" ? "e.g. Announce our new pumpkin cold brew, playful, for Instagram" : tab === "IMAGE" ? "e.g. Pumpkin cold brew on a rustic table, autumn light" : "e.g. Slow pour of cold brew over ice, close-up"}
-                  className="w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring" />
-              </div>
-              {tab === "TEXT" ? (
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="gen-platform">Platform</Label>
-                    <NativeSelect id="gen-platform" value={platform} onChange={(e) => setPlatform(e.target.value)}>
-                      {PLATFORMS.map((p) => <option key={p} value={p}>{p || "Any"}</option>)}
-                    </NativeSelect>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="gen-tone">Tone</Label>
-                    <Input id="gen-tone" value={tone} onChange={(e) => setTone(e.target.value)} placeholder="friendly" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="gen-variants">Options</Label>
-                    <NativeSelect id="gen-variants" value={variants} onChange={(e) => setVariants(Number(e.target.value))}>
-                      {[1, 2, 3].map((n) => <option key={n} value={n}>{n}</option>)}
-                    </NativeSelect>
-                  </div>
-                </div>
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <Card className="min-w-0">
+          <CardHeader>
+            <CardTitle>{postId ? "Edit post" : "New post"}</CardTitle>
+            <CardDescription>Write once, then customize per platform if you want.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4">
+            <div className="grid gap-2">
+              <Label>Publish to</Label>
+              {accounts.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No connected accounts. <a href="/dashboard/accounts" className="underline">Connect one</a> to publish.</p>
               ) : (
-                <div className="grid gap-2">
-                  <Label htmlFor="gen-aspect">Aspect ratio</Label>
-                  <NativeSelect id="gen-aspect" value={aspect} onChange={(e) => setAspect(e.target.value)}>
-                    {["1:1", "4:5", "9:16", "16:9"].map((a) => <option key={a} value={a}>{a}</option>)}
-                  </NativeSelect>
+                <div className="flex flex-wrap gap-2" data-testid="target-accounts">
+                  {accounts.map((a) => (
+                    <label key={a.id} className={cn("flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs", selected.includes(a.id) && "border-primary bg-accent", a.status !== "CONNECTED" && "opacity-60")}>
+                      <input type="checkbox" className="size-3.5" disabled={!editable} checked={selected.includes(a.id)}
+                        onChange={(e) => setSelected((s) => (e.target.checked ? [...s, a.id] : s.filter((x) => x !== a.id)))} />
+                      {LABEL[a.platform]} · {a.label}{a.isMock ? " (mock)" : ""}{a.status !== "CONNECTED" ? ` (${a.status.toLowerCase()})` : ""}
+                    </label>
+                  ))}
                 </div>
               )}
-              <details className="text-sm">
-                <summary className="cursor-pointer text-muted-foreground">Provider &amp; model</summary>
-                <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="grid gap-2">
-                    <Label htmlFor="gen-provider">Provider</Label>
-                    <NativeSelect id="gen-provider" value={provider} onChange={(e) => setProvider(e.target.value)}>
-                      <option value="AUTO">Workspace default{cfg.preference.provider !== "AUTO" ? ` (${cfg.preference.provider})` : ""}</option>
-                      {cfg.providers.map((p) => <option key={p.provider} value={p.provider}>{p.label}{p.byok ? " · your key" : ""}</option>)}
-                    </NativeSelect>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="gen-model">Model (optional)</Label>
-                    <Input id="gen-model" list="model-suggestions" value={model} onChange={(e) => setModel(e.target.value)} placeholder={modelSuggestions[0] ?? "default"} />
-                    <datalist id="model-suggestions">{modelSuggestions.map((m) => <option key={m} value={m} />)}</datalist>
-                  </div>
-                </div>
-              </details>
-              {genError ? <p role="alert" className="text-sm text-destructive">{genError}</p> : null}
-              <Button onClick={generate} disabled={submitting || !!pending || prompt.trim().length < 3}>
-                {submitting || pending ? <><Loader2 className="animate-spin" /> Generating…</> : <>Generate · {cfg.cost} credit{cfg.cost === 1 ? "" : "s"}</>}
-              </Button>
-            </>
-          )}
+            </div>
 
-          {current && current.status !== "QUEUED" && current.status !== "RUNNING" ? (
-            <GenerationResult g={current} onUseText={(t) => setContent(t)} onAppendText={(t) => setContent((c) => (c ? `${c}\n\n${t}` : t))} onAttach={attach} attachedIds={media.map((m) => m.id)} />
-          ) : null}
-
-          {history.length ? (
-            <div className="grid grid-cols-1 gap-2 border-t pt-4">
-              <p className="text-xs font-medium uppercase text-muted-foreground">Recent</p>
-              <div className="grid grid-cols-1 gap-2" data-testid="generation-history">
-                {history.filter((g) => g.id !== current?.id).slice(0, 5).map((g) => (
-                  <button key={g.id} type="button" onClick={() => setCurrent(g)} className="flex w-full min-w-0 items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-left text-sm hover:bg-accent">
-                    <span className="min-w-0 truncate">{g.prompt}</span>
-                    <Badge variant={g.status === "FAILED" ? "destructive" : "outline"}>{g.type.toLowerCase()}</Badge>
+            <div className="grid gap-2">
+              <div className="flex flex-wrap gap-1" role="tablist" aria-label="Text per platform">
+                {["ALL", ...platforms].map((p) => (
+                  <button key={p} type="button" role="tab" aria-selected={tab === p} onClick={() => setTab(p)}
+                    className={cn("rounded-md px-2.5 py-1 text-xs", tab === p ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>
+                    {p === "ALL" ? "All platforms" : `${LABEL[p]}${overrides[p]?.trim() ? " •" : ""}`}
                   </button>
                 ))}
               </div>
+              <Label htmlFor="post-content" className="sr-only">Post text</Label>
+              <textarea id="post-content" aria-label={tab === "ALL" ? "Post text" : `${LABEL[tab]} text`} value={activeText} disabled={!editable}
+                onChange={(e) => setActiveText(e.target.value)} rows={7} className={textareaCls}
+                placeholder={tab === "ALL" ? "What do you want to share?" : `Custom text for ${LABEL[tab]} (leave empty to use the shared text)`} />
+              {tab !== "ALL" ? <p className="text-xs text-muted-foreground">Only {LABEL[tab]} uses this text. Empty = the shared text.</p> : null}
             </div>
-          ) : null}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
 
-function GenerationResult({ g, onUseText, onAppendText, onAttach, attachedIds }: {
-  g: PublicGeneration;
-  onUseText: (t: string) => void;
-  onAppendText: (t: string) => void;
-  onAttach: (g: PublicGeneration) => void;
-  attachedIds: string[];
-}) {
-  if (g.status === "FAILED") return <p role="alert" className="rounded-md border border-destructive/40 p-3 text-sm text-destructive" data-testid="generation-error">{g.error}</p>;
-  const meta = (
-    <p className="text-xs text-muted-foreground" data-testid="generation-meta">
-      {g.provider === "MOCK" ? "Mock provider (placeholder)" : g.provider} · {g.model}
-      {g.fallbackFrom ? ` · fell back from ${g.fallbackFrom}` : ""}
-      {g.usedByok ? " · your API key, no credits used" : ` · ${g.creditsCharged} credit${g.creditsCharged === 1 ? "" : "s"}`}
-    </p>
-  );
-  if (g.type === "TEXT") {
-    return (
-      <div className="grid gap-3" data-testid="generation-result">
-        {(g.output?.variants ?? []).map((v, i) => (
-          <div key={i} className="grid gap-2 rounded-md border p-3">
-            <p className="whitespace-pre-wrap text-sm">{v}</p>
-            <div className="flex gap-2">
-              <Button size="sm" onClick={() => onUseText(v)}>Use</Button>
-              <Button size="sm" variant="outline" onClick={() => onAppendText(v)}>Append</Button>
+            <div className="grid gap-2">
+              <Label>Media</Label>
+              {media.length === 0 ? <p className="text-sm text-muted-foreground">Nothing attached. Generate an image or video and click Attach.</p> : null}
+              <div className="grid grid-cols-3 gap-2" data-testid="attached-media">
+                {media.map((m) => (
+                  <div key={m.id} className="relative">
+                    <MediaPreview m={m} className="aspect-square w-full" />
+                    {editable ? (
+                      <button type="button" aria-label="Remove attachment" onClick={() => setMedia((x) => x.filter((y) => y.id !== m.id))} className="absolute right-1 top-1 rounded-full bg-background/90 p-1 shadow">
+                        <XIcon className="size-3" />
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
-        {meta}
+
+            {editable ? (
+              <div className="grid gap-3 rounded-md border p-3" data-testid="schedule-panel">
+                <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="When">
+                  {([["at", "Schedule"], ["now", "Publish now"], ["queue", "Add to queue"]] as const).map(([m, l]) => (
+                    <button key={m} type="button" role="radio" aria-checked={mode === m} onClick={() => setMode(m)}
+                      className={cn("rounded-md px-3 py-1.5 text-sm", mode === m ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground")}>{l}</button>
+                  ))}
+                </div>
+                {mode === "at" ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-2">
+                      <Label htmlFor="sched-at">Date &amp; time</Label>
+                      <Input id="sched-at" type="datetime-local" value={local} onChange={(e) => setLocal(e.target.value)} />
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="sched-tz">Timezone</Label>
+                      <NativeSelect id="sched-tz" value={tz} onChange={(e) => setTz(e.target.value)}>
+                        {timezones.map((z) => <option key={z} value={z}>{z}</option>)}
+                      </NativeSelect>
+                    </div>
+                  </div>
+                ) : mode === "queue" ? (
+                  <p className="text-sm text-muted-foreground">{hasQueueSlots ? "Goes into the next free posting slot." : <>No posting slots yet. Set them on the <a className="underline" href="/dashboard/calendar">Calendar</a>.</>}</p>
+                ) : null}
+                {mode !== "now" ? (
+                  <div className="grid gap-2">
+                    <Label htmlFor="sched-repeat">Repeat</Label>
+                    <NativeSelect id="sched-repeat" value={repeat} disabled={!canRecur} onChange={(e) => setRepeat(e.target.value as never)}>
+                      <option value="">Doesn&apos;t repeat</option>
+                      <option value="DAILY">Daily</option>
+                      <option value="WEEKLY">Weekly</option>
+                      <option value="MONTHLY">Monthly</option>
+                    </NativeSelect>
+                    {!canRecur ? <p className="text-xs text-muted-foreground">Recurring posts need a plan with recurring posts. <a href="/dashboard/billing" className="underline">Upgrade</a></p> : null}
+                    {repeat === "WEEKLY" ? (
+                      <div className="flex flex-wrap gap-1">
+                        {DAYS.map(([code, l]) => (
+                          <label key={code} className={cn("cursor-pointer rounded-md border px-2 py-1 text-xs", days.includes(code) && "border-primary bg-accent")}>
+                            <input type="checkbox" className="sr-only" checked={days.includes(code)} onChange={(e) => setDays((d) => (e.target.checked ? [...d, code] : d.filter((x) => x !== code)))} />
+                            {l}
+                          </label>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {checks?.length ? (
+                  <ul className="grid gap-1 text-sm" data-testid="schedule-problems">
+                    {checks.map((c) => <li key={c.accountId} className="text-destructive">⛔ {LABEL[c.platform]} · {c.label}: {c.errors.map((e) => e.message).join(" ")}</li>)}
+                  </ul>
+                ) : null}
+                {msg ? <p role={msg.ok ? "status" : "alert"} className={cn("text-sm", msg.ok ? "text-muted-foreground" : "text-destructive")}>{msg.text}</p> : null}
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={schedule} disabled={busy || !selected.length || (!content.trim() && !media.length)}>
+                    {mode === "now" ? <><Send /> Publish now</> : <><CalendarClock /> {mode === "queue" ? "Add to queue" : initial.status === "SCHEDULED" ? "Reschedule" : "Schedule"}</>}
+                  </Button>
+                  <Button variant="outline" onClick={save} disabled={busy || (!content.trim() && !media.length)}>Save draft</Button>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">This post has been published and can&apos;t be edited. See <a href="/dashboard/posts" className="underline">Posts</a>.</p>
+            )}
+          </CardContent>
+        </Card>
+
+        <AiPanel
+          options={options}
+          recent={recent}
+          attachedIds={media.map((m) => m.id)}
+          onUseText={(t) => setActiveText(t)}
+          onAppendText={(t) => setActiveText(activeText ? `${activeText}\n\n${t}` : t)}
+          onAttach={(m) => setMedia((x) => (x.some((y) => y.id === m.id) ? x : [...x, m]))}
+        />
       </div>
-    );
-  }
-  const id = g.output?.mediaAssetId;
-  return (
-    <div className="grid gap-3" data-testid="generation-result">
-      {id ? <MediaPreview m={{ id, kind: g.type }} className="max-h-80 w-full object-contain" /> : null}
-      <Button size="sm" className="w-fit" disabled={!id || attachedIds.includes(id)} onClick={() => onAttach(g)}>
-        {id && attachedIds.includes(id) ? "Attached" : "Attach to post"}
-      </Button>
-      {meta}
-    </div>
-  );
-}
 
-const PLATFORM_LABEL: Record<string, string> = { X: "X", INSTAGRAM: "Instagram", FACEBOOK: "Facebook", LINKEDIN: "LinkedIn", TIKTOK: "TikTok", YOUTUBE: "YouTube" };
-
-/** Pick target accounts and validate the draft against each platform's publisher rules. */
-function TargetCheck({ accounts, content, mediaIds }: { accounts: TargetAccount[]; content: string; mediaIds: string[] }) {
-  const [selected, setSelected] = useState<string[]>([]);
-  const [results, setResults] = useState<AccountValidation[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [checking, start] = useTransition();
-  const mediaKey = mediaIds.join(",");
-  const selectedKey = selected.join(",");
-  // Any edit invalidates a previous check.
-  useEffect(() => setResults(null), [content, mediaKey, selectedKey]);
-
-  if (!accounts.length) {
-    return <p className="text-sm text-muted-foreground">Connect accounts in <a href="/dashboard/accounts" className="underline">Accounts</a> to check this post against each platform.</p>;
-  }
-  return (
-    <div className="grid gap-2 rounded-md border p-3" data-testid="target-check">
-      <Label>Check for accounts</Label>
-      <div className="flex flex-wrap gap-2">
-        {accounts.map((a) => (
-          <label key={a.id} className={cn("flex cursor-pointer items-center gap-1.5 rounded-md border px-2 py-1 text-xs", selected.includes(a.id) && "border-primary bg-accent")}>
-            <input type="checkbox" className="size-3.5" checked={selected.includes(a.id)} onChange={(e) => setSelected((s) => (e.target.checked ? [...s, a.id] : s.filter((x) => x !== a.id)))} />
-            {PLATFORM_LABEL[a.platform] ?? a.platform} · {a.label}{a.isMock ? " (mock)" : ""}
-          </label>
-        ))}
-      </div>
-      <Button size="sm" variant="outline" className="w-fit" disabled={!selected.length || checking}
-        onClick={() => start(async () => {
-          setError(null);
-          const r = await validateAction({ content, mediaAssetIds: mediaIds, accountIds: selected });
-          if (r.ok) setResults(r.results ?? []);
-          else setError(r.error ?? Object.values(r.fieldErrors ?? {}).flat()[0] ?? "Couldn't validate");
-        })}>
-        {checking ? "Checking…" : "Check post"}
-      </Button>
-      {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-      {results ? (
-        <ul className="grid gap-2 text-sm" data-testid="validation-results">
-          {results.map((r) => (
-            <li key={r.accountId} className="rounded-md bg-muted/50 p-2" data-testid={`validation-${r.platform}`}>
-              <p className="font-medium">{r.ok ? "✅" : "⛔"} {PLATFORM_LABEL[r.platform]} · {r.handle ?? r.displayName}{r.ok ? ": ready to publish" : ""}</p>
-              {r.errors.map((e) => <p key={e.code} className="text-destructive">• {e.message}</p>)}
-              {r.warnings.map((w) => <p key={w.code} className="text-muted-foreground">• {w.message}</p>)}
-            </li>
-          ))}
-        </ul>
+      {targets.length ? (
+        <Card>
+          <CardHeader>
+            <CardTitle>Preview</CardTitle>
+            <CardDescription>How it will look on each platform, checked against its rules as you type.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="previews">
+            {targets.map((a) => <PlatformPreview key={a.id} account={a} text={textFor(a.platform)} media={media} />)}
+          </CardContent>
+        </Card>
       ) : null}
     </div>
   );

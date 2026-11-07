@@ -113,10 +113,11 @@ async function main() {
 
   const posts = [
     { content: "Draft: our autumn menu is coming. Pumpkin cold brew? 🎃", status: "DRAFT" as const, targets: [x.id] },
+    // Scheduled samples are valid for their platforms, so the real scheduler publishes them (Instagram needs media).
     { content: "Monday fuel ☕ 20% off all lattes before 9am. #MondayMotivation", status: "SCHEDULED" as const,
-      targets: [x.id, ig.id], schedule: { scheduledAt: hoursFromNow(2), timezone: "America/New_York" } },
-    { content: "We're hiring baristas in Brooklyn! Apply via the link in bio.", status: "SCHEDULED" as const,
-      targets: [li.id, ig.id], schedule: { scheduledAt: hoursFromNow(26), timezone: "America/New_York" } },
+      targets: [x.id, li.id], schedule: { scheduledAt: hoursFromNow(2), timezone: "America/New_York" } },
+    { content: "We're hiring baristas in Brooklyn! Apply via the link in our profile.", status: "SCHEDULED" as const,
+      targets: [li.id, x.id], schedule: { scheduledAt: hoursFromNow(26), timezone: "America/New_York" } },
     { content: "Weekly roast drop — this week: Ethiopia Yirgacheffe.", status: "SCHEDULED" as const,
       targets: [x.id], schedule: { scheduledAt: hoursFromNow(72), timezone: "America/New_York", recurrenceRule: "FREQ=WEEKLY;BYDAY=FR" } },
     { content: "Thanks for 10k followers! 🙏", status: "PUBLISHED" as const, targets: [x.id], publishedAt: hoursFromNow(-48) },

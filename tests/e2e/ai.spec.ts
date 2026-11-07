@@ -14,7 +14,7 @@ test("compose: generate caption, image and video (mock), attach, save draft", as
   await logIn(page, "demo@example.com", seed.demoPassword); // Acme Coffee: comped Pro (video enabled)
   await page.goto("/dashboard/compose");
 
-  await page.getByLabel("Platform").selectOption("X");
+  await page.locator("#gen-platform").selectOption("X");
   await generate(page, "Caption", "Announce our pumpkin cold brew launch this Friday");
   await expect(page.getByTestId("generation-meta")).toContainText("Mock provider");
   await expect(page.getByTestId("generation-meta")).toContainText("1 credit");

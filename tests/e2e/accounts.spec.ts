@@ -50,24 +50,19 @@ test("a replayed/forged callback is rejected", async ({ page }) => {
   await expect(page.getByRole("alert").filter({ hasText: /invalid or expired/ })).toBeVisible();
 });
 
-test("validate a draft against connected accounts in the composer", async ({ page }) => {
+test("validate a draft against connected accounts in the composer (live previews)", async ({ page }) => {
   await logIn(page, "demo@example.com", seed.demoPassword); // Acme: seeded mock X, Instagram, LinkedIn
   await page.goto("/dashboard/compose");
   await page.getByLabel("Post text").fill("A".repeat(300));
-  const check = page.getByTestId("target-check");
-  await check.getByText(/^X · /).click();
-  await check.getByText(/^Instagram · /).click();
-  await check.getByText(/^LinkedIn · /).click();
-  await page.getByRole("button", { name: "Check post" }).click();
+  const targets = page.getByTestId("target-accounts");
+  for (const p of ["X", "Instagram", "LinkedIn"]) await targets.getByText(new RegExp(`^${p} · `)).click();
 
-  await expect(page.getByTestId("validation-X")).toContainText("X allows 280 characters");
-  await expect(page.getByTestId("validation-INSTAGRAM")).toContainText("need at least one image or video");
-  await expect(page.getByTestId("validation-LINKEDIN")).toContainText("ready to publish");
+  await expect(page.getByTestId("preview-X")).toContainText("X allows 280 characters");
+  await expect(page.getByTestId("preview-INSTAGRAM")).toContainText("need at least one image or video");
+  await expect(page.getByTestId("preview-LINKEDIN")).toContainText("Ready for LinkedIn");
 
   await page.getByLabel("Post text").fill("Short post for X");
-  await expect(page.getByTestId("validation-results")).toHaveCount(0); // edits invalidate the check
-  await page.getByRole("button", { name: "Check post" }).click();
-  await expect(page.getByTestId("validation-X")).toContainText("ready to publish");
+  await expect(page.getByTestId("preview-X")).toContainText("Ready for X");
 });
 
 test("members can view accounts but not connect", async ({ page }) => {

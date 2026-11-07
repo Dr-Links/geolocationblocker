@@ -4,7 +4,87 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 4: Social connections + publishers ✅ (awaiting review)
+## Phase 5: Composer + scheduling engine ✅ (awaiting review)
+
+### Acceptance
+**A post scheduled for a given time is published via the mock at that time, and shows the right status throughout.** This is proven end to end in the browser:
+- an e2e test schedules a post for the next minute in `America/New_York`;
+- the real worker publishes it to X and LinkedIn within that minute;
+- the Posts page moves it from Scheduled to Published, with both links;
+- the DB check confirms it was not published early.
+
+### What you can do
+- **Composer** (`/dashboard/compose`):
+  - pick target accounts and write once;
+  - optionally **customize the text per platform** (tabs, "•" marks an override);
+  - attach generated media; get help from the AI panel (Phase 3);
+  - see a **live preview per platform**: how the text folds ("…more" where Instagram, LinkedIn etc. truncate), the character count against the limit, media layout, YouTube's title line, and errors and warnings from the *same* rules the publishers use.
+- **When:** **Schedule** (date/time + timezone, defaulting to the workspace's), **Publish now**, or **Add to queue** (the next free slot). **Repeat** daily, weekly (chosen days) or monthly, gated by the plan's `recurring` feature.
+- Scheduling is **refused with per-account reasons** if any target breaks its rules, so problems show up in the composer and not at 3am in the worker.
+- **Posts** (`/dashboard/posts`):
+  - tabs: Scheduled / Drafts / Published / Failed / All;
+  - per-platform status, live link, retry time and error, with auto-refresh while publishing;
+  - **Edit, Unschedule, Retry failed** (only the failed platforms are re-sent), **Delete**.
+- **Calendar** (`/dashboard/calendar`):
+  - a month grid in the workspace timezone, with colour-coded chips by status;
+  - an agenda list on phones;
+  - the **posting queue** slot editor (weekdays × time).
+
+### Scheduling engine (worker)
+- **The DB is the source of truth; BullMQ is only the timer.** Each scheduled post gets a delayed job ("look at post X now"). A **sweep every minute** re-enqueues anything due, which covers lost Redis jobs and restarts. So early, late or duplicate jobs are harmless.
+- **No double posting:**
+  - the post is claimed `SCHEDULED → PUBLISHING`, and each target `PENDING → PUBLISHING`, with conditional updates;
+  - a test fires **5 concurrent jobs** at one post and the publisher is called exactly once per platform;
+  - unschedule uses the same conditional update, so it loses cleanly if the worker already started.
+- **Retries:**
+  - transient errors (429/5xx/network) back off at 1, 5 and 15 minutes (`PUBLISH_RETRY_BASE_MS`), 4 attempts in total;
+  - permanent errors fail that platform at once;
+  - an expired or revoked token fails it with a "reconnect" message and marks the account **EXPIRED**.
+- **Outcome:** `PUBLISHED`, `PARTIALLY_PUBLISHED` (some platforms failed) or `FAILED`; `publishedAt` is the first success.
+- **Crashed worker mid-publish:** after 15 minutes the sweep marks that target `FAILED` with "check the platform before retrying", **not** an automatic retry. The platform may already have the post, and a blind retry could double-post.
+- **Recurring series:**
+  - after each occurrence finishes, the next one is created as a separate post (same text, media and live targets) sharing a `seriesId`. It's idempotent (one post per occurrence time) and checks the plan's post limit, pausing the series with an audit entry if it's reached;
+  - missed occurrences after downtime are skipped, not burst-published.
+- **Timezones:** pure-`Intl` conversion (`src/lib/time.ts`, no dependency).
+  - Occurrences keep the **same wall-clock time across DST** (a 9:00 weekly post stays at 9:00).
+  - Times inside the spring-forward gap move past the gap; ambiguous fall-back times take the first occurrence.
+  - Verified with a brute-force round trip every 30 minutes for a year in five zones (London, Sydney, LA, Kathmandu +5:45, São Paulo), with zero mismatches.
+- **Recurrence** is a small, explicit RRULE subset (`FREQ=DAILY|WEEKLY|MONTHLY`, `INTERVAL`, `BYDAY`, `UNTIL`). It clamps months (Jan 31 → Feb 28) and every-N-weeks handles multiple weekdays.
+
+### Decisions
+- Validation runs **in the browser** (instant preview) and **again on the server** at schedule time (authoritative, with each account's actual publisher).
+- Published and partially published posts are read-only; failed ones can be edited or retried.
+- **Seed:** the scheduled sample posts now target X + LinkedIn. The engine really publishes them, and Instagram requires media.
+
+### Bugs found and fixed this phase
+1. A DST-gap time converted to the wrong side of the gap (caught by the time tests).
+2. `prisma format` re-aligned the schema, so a text-based edit silently missed a column; the drift check caught it and it got its own migration.
+3. A failed schedule attempt on a new post re-mounted the composer and lost its error list, and a second attempt would have created a duplicate draft. The id is now kept in state, the URL is updated with `history.replaceState`, and e2e asserts there's no duplicate.
+4. The preview used `Buffer` in the browser.
+
+### Tests added
+- **Unit (10):** timezone conversion (winter/summer, half-hour offsets, DST gap and overlap), recurrence (DST-stable daily, weekly multi-day, every-2-weeks, month clamping, UNTIL).
+- **Integration (19):**
+  - acceptance (not before its time, published after, correct statuses, delayed job at the exact instant);
+  - UTC storage for a chosen timezone; publish now;
+  - validation blocking per account; per-platform overrides;
+  - past, far-future and no-target guards;
+  - backoff schedule to exhaustion; permanent errors; partial outcome + retry re-sending only the failures; expired token → reconnect + account EXPIRED;
+  - the **concurrency race**; unschedule (including mid-publish); edit lock; tenant isolation;
+  - weekly recurrence (same local time, idempotent); plan gating for recurring;
+  - queue slots (next, then next-after; no slots);
+  - the sweep (lost job; stuck target → FAILED).
+- **E2E (5):** the acceptance test (real worker, next-minute schedule); publish now; live preview + override + no duplicate draft; partial failure → retry, unschedule, delete; calendar + queue slots + add to queue + weekly repeat.
+- Totals: **239 unit/integration + 34 e2e, all passing.**
+
+### Stubbed / next
+- Uploading your own media (rather than generating it) isn't built yet; attaching only covers generated media. Say if you want upload in Phase 7.
+- There's no drag-to-reschedule on the calendar (click opens the composer).
+- Phase 6 adds the admin/user dashboards, analytics, the failed-publish view for you, audit log browsing and impersonation.
+
+---
+
+## Phase 4: Social connections + publishers ✅
 
 ### What you can do
 - **Accounts** (`/dashboard/accounts`): connect X, Instagram, Facebook, LinkedIn, TikTok and YouTube; see status (Connected / Expired / Error / Disconnected), token expiry and last check; **Check** the connection, **Disconnect**, and **Reconnect**. Usage is shown against the plan's account limit.

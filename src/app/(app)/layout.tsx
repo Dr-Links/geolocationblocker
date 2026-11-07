@@ -8,8 +8,8 @@ import { signOutAction } from "../(auth)/actions";
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, ready: true },
   { href: "/dashboard/compose", label: "Composer", icon: Sparkles, ready: true },
-  { href: "#", label: "Calendar", icon: CalendarDays, ready: false },
-  { href: "#", label: "Posts", icon: FileText, ready: false },
+  { href: "/dashboard/calendar", label: "Calendar", icon: CalendarDays, ready: true },
+  { href: "/dashboard/posts", label: "Posts", icon: FileText, ready: true },
   { href: "/dashboard/accounts", label: "Accounts", icon: Link2, ready: true },
   { href: "/dashboard/billing", label: "Billing", icon: CreditCard, ready: true },
   { href: "/dashboard/settings/members", label: "Members", icon: Users, ready: true },
