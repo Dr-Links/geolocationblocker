@@ -1,8 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // pino and bcryptjs run server-side only; keep them out of the bundle.
-  serverExternalPackages: ["pino", "bcryptjs"],
+  // Server-only packages loaded from node_modules at runtime instead of bundled
+  // (bullmq resolves its child-process worker dynamically, which bundling breaks).
+  serverExternalPackages: ["pino", "bcryptjs", "bullmq", "ioredis"],
   poweredByHeader: false,
   async headers() {
     return [

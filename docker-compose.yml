@@ -20,7 +20,7 @@ services:
 
   redis:
     image: redis:7-alpine
-    command: ["redis-server", "--appendonly", "yes"]
+    command: ["redis-server", "--appendonly", "yes", "--maxmemory-policy", "noeviction"]
     ports: ["6379:6379"]
     volumes: [redisdata:/data]
     healthcheck:
@@ -51,7 +51,7 @@ services:
 
   worker:
     build: .
-    command: ["npm", "run", "worker"]
+    command: ["worker"]
     env_file: .env
     environment:
       DATABASE_URL: postgresql://postpilot_app:postpilot_app@postgres:5432/socialai?schema=public

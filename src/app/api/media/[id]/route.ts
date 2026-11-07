@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
+import { apiHandler } from "@/server/api";
 import { getStorage } from "@/server/storage";
 import { getTenantContext } from "@/server/tenancy/context";
 
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
  * Serve a media asset to members of its workspace. RLS on ctx.db means an id
  * from another workspace simply isn't found. Supports Range for video seeking.
  */
-export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export const GET = apiHandler(async (req: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
   const { id } = await params;
   const ctx = await getTenantContext();
   const asset = await ctx.db.mediaAsset.findUnique({ where: { id } });
@@ -38,4 +39,4 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     });
   }
   return new NextResponse(new Uint8Array(body), { headers: { ...headers, "Content-Length": String(body.length) } });
-}
+});

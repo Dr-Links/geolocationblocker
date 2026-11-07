@@ -1,0 +1,13 @@
+# Caddy obtains and renews the TLS certificate for $DOMAIN automatically
+# (DNS must point at this server, ports 80/443 open).
+{$DOMAIN} {
+	encode zstd gzip
+	# Uploads up to MEDIA_MAX_VIDEO_MB (+ multipart overhead).
+	request_body {
+		max_size 210MB
+	}
+	reverse_proxy app:3000 {
+		# The app reads the client IP from X-Forwarded-For (rate limits, audit).
+		header_up X-Forwarded-For {remote_host}
+	}
+}

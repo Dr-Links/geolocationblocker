@@ -73,9 +73,32 @@ jobs:
           E2E_PORT: "3100"
 
   docker:
+    # Boots the real docker-compose stack (image entrypoint, migrations, worker,
+    # RLS boot guard) and checks it serves; validates the production compose file.
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t ai-social-manager:ci .
+      - name: Validate production compose file
+        run: |
+          touch .env.production
+          DOMAIN=example.com POSTGRES_PASSWORD=x APP_DB_PASSWORD=y docker compose -f docker-compose.prod.yml config -q
+      - name: Create .env for the compose stack
+        run: |
+          cp .env.example .env
+          sed -i "s|^NODE_ENV=.*|NODE_ENV=production|; s|^AUTH_SECRET=.*|AUTH_SECRET=$(openssl rand -base64 32)|; s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$(openssl rand -base64 32)|" .env
+      - name: Build and start app + worker + postgres + redis
+        run: docker compose up -d --build --wait --wait-timeout 300
+      - name: Smoke test
+        run: |
+          curl -fsS http://localhost:3000/api/health | tee /dev/stderr | grep -q '"status":"ok"'
+          curl -fsS -o /dev/null -w "%{http_code}\n" http://localhost:3000/login
+          curl -fsSI http://localhost:3000/login | grep -i "content-security-policy: .*nonce-"
+          docker compose exec -T app npm run db:seed
+          docker compose ps
+      - name: Logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail 200
+      - name: Stop
+        if: always()
+        run: docker compose down -v

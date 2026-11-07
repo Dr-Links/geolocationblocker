@@ -8,7 +8,8 @@ import { createServer } from "node:http";
 import { Worker, type Job } from "bullmq";
 import IORedis from "ioredis";
 import { db } from "@/lib/db";
-import { getEnv } from "@/lib/env";
+import { assertRlsEnforced } from "@/lib/db-guard";
+import { assertProductionConfig, getEnv } from "@/lib/env";
 import { logger } from "@/lib/logger";
 import { QUEUES, getQueue, redisConnection } from "@/lib/queues";
 import { processGeneration } from "@/server/ai/service";
@@ -45,6 +46,8 @@ async function processSystemJob(job: Job) {
 
 async function main() {
   getEnv(); // fail fast on missing/invalid config
+  assertProductionConfig();
+  await assertRlsEnforced(); // same boot guard as the app: refuse to run with an RLS-bypassing DB role
   const connection = redisConnection();
 
   const systemWorker = new Worker(QUEUES.system, processSystemJob, { connection, concurrency: 1 });

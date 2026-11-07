@@ -4,7 +4,114 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 6: Dashboards, analytics, audit log, impersonation ✅ (awaiting review)
+## Phase 7: Hardening, docs, deploy config ✅ (awaiting review)
+
+### Acceptance
+- **Tests for critical flows:**
+  - every user journey in the spec has an e2e test that drives the real UI against a production build and the real worker;
+  - the security-critical rules have integration tests against a real Postgres with RLS.
+  - Totals: **283 unit/integration** and **44 e2e**, all passing.
+- **Error handling:** every failure path ends in a friendly page or JSON error with a reference id, and a matching structured log line.
+- **Docs:** setup in the `README`. Swapping each mock for its real service is in `docs/INTEGRATIONS.md`. Deploying is in `docs/DEPLOY.md`. Running the system is in `docs/OPERATIONS.md`.
+- **Deploy config:** Render blueprint, Fly.io config, and a single-VPS compose file with automatic HTTPS. CI now boots the real Docker stack.
+
+### Error handling
+- **Error boundaries:**
+  - the root, the signed-in app (navigation stays usable) and the admin area each have one, plus a last-resort `global-error`;
+  - they show the error's **reference id** and never the raw message;
+  - there's a `not-found` page.
+- **Server-side logging:** every unhandled server error (pages, server actions, route handlers) is logged once as structured JSON via `onRequestError`. It carries the same reference id (`digest`), so a user's screenshot leads straight to the log line.
+- **API errors:** route handlers go through `apiHandler`, which returns consistent JSON errors:
+  - `AppError` → its own status;
+  - validation errors → 400 with field errors;
+  - rate limits → 429 + `Retry-After`;
+  - anything else → a masked 500 (tested to not leak internals).
+- **Health check:** `/api/health` now reports Redis as well as the database. Only a database failure returns 503, so a Redis blip doesn't make the platform restart a healthy app.
+
+### Security hardening
+- **Content-Security-Policy with a per-request nonce:**
+  - only scripts carrying that request's nonce run;
+  - framing, plugins and `<base>` hijacking are blocked;
+  - an e2e test loads every main page and fails on any CSP violation.
+  - *Deviation, justified:* `style-src` allows `'unsafe-inline'`, because React `style={}` attributes (progress bars, chart colours) can't carry a nonce. Style injection is far less dangerous than script injection, and no user content is rendered as HTML.
+- **HSTS** on `https://` production deployments.
+- **The auth gate now runs in a custom middleware on every page,** not just the protected ones; the CSP needs it there. The gate logic is a pure function with unit tests. *A fix made along the way:* I didn't exclude prefetch requests, which would have let them skip the gate.
+- **Production config check at boot (app and worker):**
+  - weak or wrong-length secrets;
+  - half-configured integrations, e.g. a Stripe key without the webhook secret (the error names what's missing);
+  - a non-Stripe key in the Stripe slot;
+  - the example admin password on a public URL.
+- **RLS boot guard in the worker too.** Before this, only the app refused to run with an RLS-bypassing DB role.
+- **New rate limits:** invitations (30/hour/workspace; they send email) and uploads (120/hour/workspace).
+- **Route handler review:**
+  - every handler resolves tenant context or verifies a signature (Stripe);
+  - the two that accept POSTs from forms check `Origin`;
+  - new e2e tests confirm another workspace's media, generations and posts are invisible through every route.
+
+### Media upload (closing a spec gap)
+The spec says "attach generated **or uploaded** media", but only generated media existed. The composer now has **Upload image or video**.
+- **The type comes from the file's bytes,** not its name or the browser's claim. Allowed: JPEG, PNG, GIF, WebP, MP4, MOV. SVG and HTML are refused, so an "image" can never be served as script.
+- **Width, height and duration are read from the file,** so platform rules (aspect ratios, video length) apply to uploads exactly as they do to generated media. The parser is tested on real encoder output from ffmpeg, and ffprobe confirms the expected values.
+- **Size limits:** `MEDIA_MAX_IMAGE_MB` (10) and `MEDIA_MAX_VIDEO_MB` (200). Oversized requests are rejected from `Content-Length` before the body is read.
+- **Storage:** keys are server-generated and tenant-prefixed (the client's file name is never a path). A failed DB write deletes the stored object. Uploads are audited.
+- *Deviation, justified:* uploads go through a route handler (`POST /api/media/upload`) rather than a Server Action, because Server Action bodies are capped at 1 MB. Route handlers don't get Next's automatic Origin check, so it's done explicitly (tested).
+
+### Deploy
+- **One image, three roles** (`app` | `worker` | `migrate`) via `docker/entrypoint.sh`.
+- **Bug fixed:** the old image started with `sh -c "migrate && npm start"`, so **SIGTERM never reached Node**, and the worker's graceful shutdown never ran on deploys.
+  - The image now runs under `tini` and each role `exec`s its process.
+  - I verified this by running the exact runtime file layout locally: the PID becomes `next-server` / the worker, and SIGTERM produces "worker shutting down" and a clean exit.
+- **The runtime image** copies only what it needs (`.next`, `src`, `prisma`, `node_modules`) rather than the whole build context.
+- **`npm run db:app-role`** creates the least-privilege database login on any managed Postgres. I tested it end to end: it creates the role and is idempotent, and the new login sees 0 rows with no tenant set.
+  - On Render/Neon the owner role works out of the box, because RLS is `FORCE`d, which applies even to table owners. The separate login is recommended because the owner could switch RLS off.
+- **Platform configs:**
+  - **Render** (`render.yaml`): app, worker, Postgres, and Key Value with `noeviction`; secrets generated in a shared env group.
+  - **Fly** (`fly.toml`): web and worker process groups, migrations as the release command.
+  - **VPS** (`docker-compose.prod.yml`): Caddy with automatic TLS. Only Caddy exposes ports. Postgres creates the app login on first boot (tested with an awkward password). Redis persists with AOF and `noeviction`.
+- **Redis `noeviction`** is now set everywhere. BullMQ loses jobs if Redis evicts keys, and some managed Redis services default to eviction.
+- **CI:** the Docker job now boots the real compose stack (image, entrypoint, migrations, worker, RLS guard). It curls the health check and a page (checking the CSP nonce), runs the seed, and validates the production compose file.
+- *Not chosen:* Vercel. The worker is a long-running process (BullMQ), which serverless functions can't host. Vercel could serve the app with the worker elsewhere, but that adds a second platform for no gain.
+
+### Operations
+- **`npm run keys:reencrypt` completes `ENCRYPTION_KEY` rotation.**
+  - Before this, `ENCRYPTION_KEY_PREVIOUS` could decrypt old secrets, but nothing moved them to the new key, so the old key could never be retired.
+  - It's idempotent and reports secrets neither key can read without touching them.
+  - Tested, scoped to the test's own tenant, because test files share one database.
+- **The build is warning-free.** BullMQ and ioredis are no longer bundled; bundling them broke BullMQ's dynamic child-process loading.
+
+### Tests added this phase
+- **Unit:**
+  - CSP directives;
+  - route gate (signed-out, non-admin, admin, public, login bounce);
+  - production config check;
+  - `apiHandler` error mapping;
+  - media sniffing for 8 real files plus SVG/HTML/text/truncated/corrupt inputs.
+- **Integration:**
+  - upload (metadata, tenant prefix, cross-tenant attach refused, rejects, size limit, rate limit);
+  - key rotation (re-encrypt + retire the old key; unreadable secrets reported, not corrupted);
+  - Stripe webhook **route** (signed event applied once, replay is a no-op, forged or unsigned → 400, unhandled → 200).
+- **e2e:**
+  - CSP present, fresh per request, and no violations across the app;
+  - 404 page and JSON 404s;
+  - health;
+  - upload → attach → save → reload → served back, with SVG refused and cross-site upload → 403;
+  - cross-tenant invisibility.
+
+### Known limits / not built
+- **Email delivery:** invites are logged and the link is shown in the UI. Password reset and email verification wait on the same choice. **Needs your pick of provider.**
+- **Rich-text editor:** the composer is a plain-text editor with per-platform overrides and live previews. *Deliberate:* none of the target platforms accept rich text (bold, links and so on) in posts, so a rich editor would preview formatting that never gets published.
+- **Engagement analytics** (likes, reach) need each platform's insights API with real credentials.
+- **Storage quotas** per plan aren't enforced. Uploads are size-limited and rate-limited only.
+- **Not verified here:** a real Render/Fly deploy and `docker compose up` (no Docker daemon in this sandbox). CI boots the compose stack on every push.
+
+### Needs you
+1. **An email provider** (Resend, Postmark, SES or another), if you want real invite emails and password reset.
+2. **Where to deploy:** Render, Fly or a VPS. I haven't created anything on any account. When you choose, I can walk through it or do it with your go-ahead.
+3. **Credentials for whichever real services you want on:** Stripe, S3/R2 (required on Render/Fly), AI provider keys, and social platform apps. `docs/INTEGRATIONS.md` lists exactly what each needs, including the platform review steps that take the longest.
+
+---
+
+## Phase 6: Dashboards, analytics, audit log, impersonation ✅
 
 ### Acceptance
 **You can manage the whole platform from the admin UI** (`/admin`, SUPER_ADMIN only). Every action below is covered by an e2e test that drives the real UI:

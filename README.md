@@ -1,119 +1,160 @@
 # Postpilot: AI Social Media Manager
 
-Multi-tenant SaaS: generate social content with AI, schedule it, and auto-publish to connected accounts.
-Every external integration (AI providers, social platforms, Stripe, S3) **defaults to a mock**, so the app works end-to-end with no live credentials.
+A multi-tenant SaaS for social content:
+- write content, or generate it with AI (text, images, short videos);
+- preview it per platform;
+- schedule it;
+- a background worker publishes it to connected accounts on X, Facebook, Instagram, LinkedIn, TikTok and YouTube.
 
-> Status: **Phase 6 (dashboards, analytics, audit log, impersonation)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
+**Every external integration defaults to a mock** (AI providers, social platforms, Stripe, object storage). The whole product works end to end with no credentials. Real services switch on one at a time when you add their keys.
+
+| Guide | For |
+|---|---|
+| [docs/INTEGRATIONS.md](./docs/INTEGRATIONS.md) | **Swapping each mock for the real service:** env vars, callback URLs, scopes, platform review notes |
+| [docs/DEPLOY.md](./docs/DEPLOY.md) | Deploying to Render, Fly.io or a single VPS |
+| [docs/OPERATIONS.md](./docs/OPERATIONS.md) | Logs, backups, key rotation, incident playbooks |
+| [BUILD_NOTES.md](./BUILD_NOTES.md) | Design decisions, phase by phase, and what's still stubbed |
 
 ## Quick start (Docker)
 
+Requires Docker with Compose v2.
+
 ```bash
 cp .env.example .env
-# set AUTH_SECRET and ENCRYPTION_KEY (each: openssl rand -base64 32)
+```
+
+In `.env`, set `AUTH_SECRET` and `ENCRYPTION_KEY`. Generate each one with:
+
+```bash
+openssl rand -base64 32
+```
+
+Then start the stack and load the demo data:
+
+```bash
 docker compose up --build
+```
+
+```bash
 docker compose exec app npm run db:seed
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000. The stack runs the app, the worker, Postgres and Redis. Migrations run automatically when the app starts.
 
-## Quick start (local Node 22 + your own Postgres/Redis)
+## Quick start (Node 22, your own Postgres 16 + Redis 7)
 
 ```bash
-cp .env.example .env          # fill AUTH_SECRET, ENCRYPTION_KEY
-# Create the runtime DB role once (tenant isolation needs a NON-superuser role):
+cp .env.example .env
+```
+
+Fill in `AUTH_SECRET` and `ENCRYPTION_KEY` as above. Then create the runtime database role once. Tenant isolation needs a non-superuser role:
+
+```bash
 psql postgresql://postgres:postgres@localhost:5432/postgres -f docker/postgres/init.sql
+```
+
+```bash
 npm install
-npm run db:migrate            # applies migrations
-npm run db:seed               # demo data + SUPER_ADMIN
-npm run dev                   # app on :3000
-npm run worker:dev            # in a second terminal: background worker
+```
+
+```bash
+npm run db:migrate
+```
+
+```bash
+npm run db:seed
+```
+
+```bash
+npm run dev
+```
+
+In a second terminal, start the worker. It publishes posts and runs AI jobs:
+
+```bash
+npm run worker:dev
 ```
 
 ### Seeded logins
 | Role | Email | Password |
 |---|---|---|
-| SUPER_ADMIN | `admin@example.com` | `ChangeMe123!` (or `SEED_ADMIN_PASSWORD`) |
+| SUPER_ADMIN (platform owner) | `admin@example.com` | `ChangeMe123!` (or `SEED_ADMIN_PASSWORD`) |
 | Workspace admin | `demo@example.com` | `Demo12345!` (or `SEED_DEMO_PASSWORD`) |
+| Owner of a second tenant | `other@example.com` | same as demo |
 
-| Owner of a 2nd tenant | `other@example.com` | same as demo |
+- **"Acme Coffee"** is a comped Pro workspace with 3 mock social accounts and sample posts: scheduled, published, failed and recurring.
+- **"Globex Bakery"** is a separate tenant, invisible to `demo@`.
 
-"Acme Coffee" is a comped Pro workspace with 3 mock social accounts and 6 sample posts. "Globex Bakery" is a separate tenant, invisible to `demo@`.
+## What you can do
 
-## Tenant isolation (read this before writing data access)
-Isolation is enforced by **Postgres row-level security**, not just app code:
-- In request code, use `ctx.db` from `getTenantContext()` / `requireTenant(permission)`, or `withTenantTx(workspaceId, fn)` for transactions.
-- Use `systemDb` / `withSystemTx` only for trusted cross-tenant code (auth, admin, worker).
-- `DATABASE_URL` **must** be a non-superuser member of `app_user`; `DIRECT_DATABASE_URL` is the owner role for migrations. The app refuses to boot in production otherwise.
+**Users** (`/dashboard`)
+- **Compose:**
+  - write once, optionally customized per platform;
+  - attach uploaded or AI-generated images and videos;
+  - see a live preview per platform, with character limits, truncation, aspect ratios and media rules;
+  - then **Publish now**, **Schedule** (time zone and repeat), or **Add to queue**.
+- **AI:** captions from a brief, images, and short videos. These run as background jobs and cost plan credits, or nothing with your own API key. Choose providers and models in **Settings → AI**.
+- **Posts and Calendar:** per-platform status, links and errors, **Retry failed**, and the posting-queue time slots.
+- **Accounts:** connect and disconnect social accounts through OAuth. See their health ("needs reconnect").
+- **Billing:** plans, checkout and the customer portal. Without Stripe, use the mock with test card `4242 4242 4242 4242`; `4000 0000 0000 0002` is declined.
+- **Members:** invite people as admin or member.
 
-On a managed host (e.g. Neon), create the runtime role once:
-```sql
-CREATE ROLE postpilot_app LOGIN PASSWORD '<strong password>' IN ROLE app_user;  -- after running migrations
-```
+**Platform owner** (`/admin`, SUPER_ADMIN)
+- **Overview:** revenue (MRR/ARR), sign-ups, publishing and AI usage charts.
+- **Workspaces:**
+  - search, **comp** (full or partial, with an optional expiry), and **suspend**;
+  - **support mode**: act inside a workspace as its admin for 60 minutes. A reason is required, everything is audited, and billing and AI keys stay locked.
+- **Users:** disable, force sign-out, and grant or revoke SUPER_ADMIN.
+- **Plans:** you set every price and limit. Price changes apply to new subscribers; existing ones are grandfathered.
+- **AI:** platform API keys (encrypted) and credit costs.
+- **Publishing ops:** failed publishes across all tenants, accounts needing reconnect, and queue health.
+- **Audit log:** a filterable history of every action.
 
-## Billing & plans
-- **You (SUPER_ADMIN) own pricing**: Admin → Plans to create/edit plans, prices, limits and features. Price changes apply to new subscribers; existing ones are grandfathered.
-- Admin → workspace page to **comp** a workspace (full or partial, optional expiry); Admin → Create free account to set up a comped account for someone new.
-- Without Stripe keys, billing runs on a **mock**: test cards `4242 4242 4242 4242` (succeeds) and `4000 0000 0000 0002` (declined), plus a mock portal that can simulate renewals and failed payments.
+## Architecture in one screen
 
-### Stripe setup (test mode)
-1. In the Stripe dashboard (test mode), copy the secret key into `STRIPE_SECRET_KEY`.
-2. Webhooks, either:
-   - locally: install the Stripe CLI and run the command below, then copy the printed `whsec_...` into `STRIPE_WEBHOOK_SECRET`;
-   - deployed: add an endpoint `https://<your-domain>/api/webhooks/stripe` with the events `checkout.session.completed`, `customer.subscription.created/updated/deleted/paused/resumed`, `invoice.paid`, `invoice.payment_failed`.
-3. Restart the app, open **Admin → Plans → Sync plans to Stripe**. This creates the real Stripe products and prices for your plans.
-4. Stripe dashboard → Settings → Billing → **Customer portal**: enable it and allow switching between your plans' products.
+- **Next.js app (App Router)** serves the UI, the API, OAuth callbacks and Stripe webhooks.
+- **Worker (BullMQ on Redis)** handles scheduled publishing, AI generation and token refresh.
+  - The **database is the source of truth.** Queue jobs are only timers, and a per-minute sweep recovers anything missed.
+  - Posts are claimed atomically, so they're never double-posted.
+- **Adapters.** Every external call goes through a small interface with a mock implementation. Real adapters activate from env:
+  - `SocialPublisher` (X, Meta, LinkedIn, TikTok, YouTube);
+  - `TextGenerator` / `ImageGenerator` / `VideoGenerator` (Anthropic, OpenAI, Google, Hugging Face) behind a router with fallback;
+  - `BillingProvider` (Stripe);
+  - `Storage` (S3/R2).
+- **Tenant isolation** is enforced by Postgres **row-level security**, not just application code (next section).
 
-```bash
-stripe listen --forward-to localhost:3000/api/webhooks/stripe
-```
+## Tenant isolation (read before writing data access)
 
-## AI generation
-- **Composer** (`/dashboard/compose`) generates captions, images and short videos as background jobs (the worker must be running: `npm run worker:dev`).
-- With **no API keys**, mock generators produce placeholder captions, a PNG and a short MP4, so everything works offline.
-- To go live, add a provider key in **Admin → AI** (encrypted) or as an env var (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_AI_API_KEY`, `HUGGINGFACE_API_TOKEN`). Each provider activates independently; the router falls back between configured providers on outages.
-- Workspaces choose default providers/models in **Settings → AI settings** and may add their own keys (plan feature "Bring your own AI keys"); those generations use no platform credits.
-- Credit cost per generation (default 1 text / 5 image / 25 video) is set in **Admin → AI**.
-
-## Social accounts
-- **Accounts** page connects X, Instagram, Facebook, LinkedIn, TikTok, YouTube. Without app credentials, a simulated consent screen is used (the full OAuth flow still runs).
-- To go live on a platform, create a developer app, register the redirect URI `${APP_URL}/api/social/callback/<platform>`, and set its env vars (see `.env.example`). That platform then uses the real API; others stay simulated.
-- Tokens are encrypted, refreshed automatically by the worker, and accounts are marked *Expired* when a platform revokes access.
-- In the composer, **Check for accounts** validates a draft against each platform's rules.
-
-## Composing & scheduling
-- **Composer**: pick accounts, write once (optionally customize per platform), attach AI media, and check the live per-platform previews. Then **Publish now**, **Schedule** (date, time, timezone, optional repeat) or **Add to queue**.
-- The **worker must be running** (`npm run worker:dev`, or the `worker` service in docker-compose): it publishes at the scheduled time, retries transient failures (1, 5, 15 minutes), and marks each platform's result.
-- **Posts** shows per-platform status, links and errors, with Retry failed. **Calendar** shows the month and holds your posting-queue time slots.
-
-## Running the platform (admin)
-Sign in as a SUPER_ADMIN and open **Admin**:
-- **Overview** shows revenue and usage charts.
-- **Workspaces**: search, comp, suspend, and **support mode**, where you act inside a workspace as its admin for 60 minutes. A reason is required, everything you do is audited, and billing and AI keys stay locked.
-- **Users**: disable, force sign-out, and grant or revoke SUPER_ADMIN.
-- **Plans** and **AI** hold prices, limits, credit costs and keys.
-- **Publishing ops**: failures, stuck posts and queue health.
-- **Audit log**: a filterable history of every action.
+- **In request code**, use `ctx.db` from `getTenantContext()` / `requireTenant(permission)`, or `withTenantTx(workspaceId, fn)` for transactions. RLS hides other workspaces' rows, so a foreign id simply isn't found.
+- **Use `systemDb` / `withSystemTx` only for trusted cross-tenant code:** auth, admin and the worker.
+- **Database roles:** `DATABASE_URL` must be a non-superuser member of `app_user`. `DIRECT_DATABASE_URL` is the owner role, used for migrations. The app and worker refuse to start in production otherwise. On managed Postgres, create the role with `npm run db:app-role` (see [DEPLOY.md](./docs/DEPLOY.md)).
 
 ## Scripts
 | Script | What |
 |---|---|
 | `npm run dev` / `build` / `start` | Next.js app |
-| `npm run worker` / `worker:dev` | BullMQ worker process |
-| `npm test` | Vitest unit + integration (needs Postgres + Redis; uses `TEST_DATABASE_URL`, migrated automatically via `TEST_DIRECT_DATABASE_URL`) |
-| `npm run test:e2e` | Playwright (builds must exist: `npm run build` first) |
+| `npm run worker` / `worker:dev` | Background worker |
+| `npm test` | Vitest unit + integration tests (needs Postgres and Redis; uses `TEST_DATABASE_URL`, migrated automatically) |
+| `npm run test:e2e` | Playwright against a production build (run `npm run build` first) |
 | `npm run typecheck` / `lint` | |
 | `npm run db:migrate` / `db:deploy` / `db:seed` / `db:reset` | Prisma |
+| `npm run db:app-role` | Create or update the least-privilege runtime database login |
+| `npm run keys:reencrypt` | Re-encrypt stored secrets after rotating `ENCRYPTION_KEY` |
 
 ## Layout
 ```
-prisma/            schema, migrations, seed
-src/app/           Next.js routes: (auth) login/signup, (app) dashboard, api/
-src/auth*.ts       Auth.js config (edge-safe part + full part)
-src/lib/           db, env, crypto (AES-256-GCM), logger, queues, validation
-src/server/        server-only: services/, tenancy/ (context, permissions), mail/, rate-limit
-src/worker/        background worker entrypoint
-tests/             unit, integration (real DB), e2e (Playwright)
+prisma/              schema, migrations (incl. RLS policies), seed
+src/app/             routes: (auth) login/signup · (app) dashboard · admin · api/
+src/server/          server-only domain code:
+  ai/                generators, router, credits, BYOK
+  billing/           plans, entitlements, Stripe/mock provider, webhook sync
+  social/            publishers (adapters), OAuth, validation rules
+  scheduling/        posts, schedules, recurrence, publish runs
+  admin/ tenancy/    admin services, tenant context, permissions, impersonation
+  media/ storage/    uploads (type sniffing), S3/local storage
+src/lib/             db (RLS clients), env, crypto, logger, CSP, queues
+src/worker/          worker entrypoint
+docker/ deploy/      container entrypoint, Postgres init, Caddy
+tests/               unit · integration (real DB) · e2e (Playwright)
+docs/                integrations, deploy, operations
 ```
-
-## Swapping mocks for real adapters
-Covered in Phase 7. In short: fill in the provider's env vars in `.env` and that adapter turns on; blank vars fall back to the mock.

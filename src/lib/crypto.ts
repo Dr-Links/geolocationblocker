@@ -52,3 +52,19 @@ export function decryptSecret(payload: string): string {
   }
   throw new Error("Failed to decrypt secret", { cause: lastErr });
 }
+
+/** True when the payload was encrypted with the CURRENT key (not a previous one). */
+export function isEncryptedWithCurrentKey(payload: string): boolean {
+  const parts = payload.split(".");
+  if (parts.length !== 4 || parts[0] !== VERSION) return false;
+  const [, ivB64, tagB64, ctB64] = parts as [string, string, string, string];
+  try {
+    const decipher = createDecipheriv("aes-256-gcm", keys()[0]!, Buffer.from(ivB64, "base64url"));
+    decipher.setAuthTag(Buffer.from(tagB64, "base64url"));
+    decipher.update(Buffer.from(ctB64, "base64url"));
+    decipher.final();
+    return true;
+  } catch {
+    return false;
+  }
+}

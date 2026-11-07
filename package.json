@@ -20,6 +20,8 @@
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
     "db:seed": "prisma db seed",
+    "db:app-role": "tsx --env-file-if-exists=.env scripts/db-app-role.ts",
+    "keys:reencrypt": "tsx --env-file-if-exists=.env scripts/reencrypt-secrets.ts",
     "db:reset": "prisma migrate reset --force",
     "postinstall": "prisma generate"
   },

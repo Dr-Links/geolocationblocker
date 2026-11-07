@@ -12,3 +12,7 @@ next-env.d.ts
 !.env.example
 .DS_Store
 .data/
+
+# Local Redis snapshot; production env file (secrets)
+dump.rdb
+.env.production

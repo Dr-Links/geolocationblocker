@@ -1,0 +1,90 @@
+# Render Blueprint: app (web) + worker + Postgres + Key Value (Redis).
+# New → Blueprint → pick this repo. Render prompts for every `sync: false`
+# value; leave the integration ones blank to keep the mocks. Plans are the
+# smallest paid tiers at the time of writing; adjust to taste.
+# Full walkthrough: docs/DEPLOY.md#render
+envVarGroups:
+  - name: postpilot-shared
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: AUTH_SECRET
+        generateValue: true # random 256-bit, base64
+      - key: ENCRYPTION_KEY
+        generateValue: true # random 256-bit, base64 = the 32 bytes AES-256-GCM needs. NEVER rotate without ENCRYPTION_KEY_PREVIOUS.
+      - key: LOG_LEVEL
+        value: info
+      - key: APP_URL
+        sync: false # e.g. https://postpilot.onrender.com or your custom domain
+      # Object storage is required here: app and worker run on separate machines.
+      - key: S3_BUCKET
+        sync: false
+      - key: S3_ENDPOINT
+        sync: false # R2: https://<account-id>.r2.cloudflarestorage.com · AWS: leave blank
+      - key: S3_REGION
+        sync: false # R2: auto · AWS: e.g. us-east-1
+      - key: S3_ACCESS_KEY_ID
+        sync: false
+      - key: S3_SECRET_ACCESS_KEY
+        sync: false
+      # Optional integrations (blank = mock). See docs/INTEGRATIONS.md.
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: GOOGLE_AI_API_KEY
+        sync: false
+      - key: HUGGINGFACE_API_TOKEN
+        sync: false
+
+services:
+  - type: web
+    name: postpilot-app
+    runtime: docker
+    plan: starter
+    dockerCommand: app # runs migrations, then next start
+    healthCheckPath: /api/health
+    envVarGroups: [postpilot-shared]
+    envVars:
+      # Owner connection: migrations. RLS is FORCEd, so even this role is tenant-isolated,
+      # but for least privilege run `npm run db:app-role` once and switch DATABASE_URL to it.
+      - key: DIRECT_DATABASE_URL
+        fromDatabase: { name: postpilot-db, property: connectionString }
+      - key: DATABASE_URL
+        fromDatabase: { name: postpilot-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: postpilot-redis, property: connectionString }
+      - key: SEED_ADMIN_EMAIL
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+
+  - type: worker
+    name: postpilot-worker
+    runtime: docker
+    plan: starter
+    dockerCommand: worker
+    envVarGroups: [postpilot-shared]
+    envVars:
+      - key: DIRECT_DATABASE_URL
+        fromDatabase: { name: postpilot-db, property: connectionString }
+      - key: DATABASE_URL
+        fromDatabase: { name: postpilot-db, property: connectionString }
+      - key: REDIS_URL
+        fromService: { type: keyvalue, name: postpilot-redis, property: connectionString }
+
+  - type: keyvalue
+    name: postpilot-redis
+    plan: starter # a paid plan persists data; BullMQ's delayed jobs live here (the DB sweep recovers them anyway)
+    maxmemoryPolicy: noeviction # REQUIRED by BullMQ: evicting keys loses jobs
+    ipAllowList: [] # private network only
+
+databases:
+  - name: postpilot-db
+    plan: basic-256mb
+    postgresMajorVersion: "16"
+    ipAllowList: [] # private network only

@@ -1,0 +1,49 @@
+# Fly.io: one app, two process groups (web + worker) from the same image.
+#   fly launch --no-deploy --copy-config      # pick a name/region, skip their Postgres/Redis prompts
+#   fly secrets set …                         # see docs/DEPLOY.md#flyio
+#   fly deploy
+# Postgres and Redis are external here (e.g. Neon + Upstash, or Fly's managed offerings).
+app = "postpilot"
+primary_region = "iad"
+
+[deploy]
+  # Runs once per deploy, before new machines start. Passed to the image entrypoint.
+  release_command = "migrate"
+  strategy = "rolling"
+
+[env]
+  NODE_ENV = "production"
+  PORT = "3000"
+  SKIP_MIGRATIONS = "1" # the release command already migrated
+  LOG_LEVEL = "info"
+
+[processes]
+  app = "app"
+  worker = "worker"
+
+[http_service]
+  processes = ["app"]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1 # keep one up: OAuth callbacks and Stripe webhooks must always land
+
+  [[http_service.checks]]
+    method = "GET"
+    path = "/api/health"
+    interval = "15s"
+    timeout = "5s"
+    grace_period = "30s"
+
+[[vm]]
+  processes = ["app"]
+  memory = "1gb"
+  cpu_kind = "shared"
+  cpus = 1
+
+[[vm]]
+  processes = ["worker"]
+  memory = "512mb"
+  cpu_kind = "shared"
+  cpus = 1

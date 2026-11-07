@@ -7,6 +7,7 @@ import { getMailer } from "@/server/mail";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
 import { assertWithinLimit } from "@/server/billing/entitlements";
+import { enforceRateLimit, envLimit } from "@/server/rate-limit";
 import { auditActor, recordAudit } from "./audit";
 
 export const INVITE_TTL_DAYS = 7;
@@ -146,6 +147,8 @@ export async function sendInvitationEmail(args: { email: string; workspaceName: 
 export async function createInvitation(ctx: TenantContext, input: { email: string; role?: WorkspaceRole }) {
   assertCan(ctx, "members.manage");
   const { email, role } = inviteSchema.parse(input);
+  // Invites send email to arbitrary addresses: cap them per workspace.
+  await enforceRateLimit(`invite:${ctx.workspaceId}`, envLimit("RATE_LIMIT_INVITES_PER_HOUR", 30), 3600);
 
   const { invitation, url } = await withTenantTx(ctx.workspaceId, async (tx) => {
     const res = await createInvitationTx(tx, { workspaceId: ctx.workspaceId, email, role, invitedById: ctx.userId });

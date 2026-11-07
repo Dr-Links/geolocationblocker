@@ -14,6 +14,7 @@ import type { PublicGeneration } from "@/server/ai/service";
 import type { TargetCheck } from "@/server/scheduling/posts";
 import { saveAndScheduleAction, savePostAction, unscheduleAction } from "./actions";
 import { AiPanel } from "./ai-panel";
+import { MediaUpload } from "./media-upload";
 import { MediaPreview } from "./media-preview";
 import { PlatformPreview } from "./platform-preview";
 import type { ComposerMedia, ComposerOptions, TargetAccount } from "./types";
@@ -175,7 +176,7 @@ export function Composer({ options, initial, recent, accounts, workspaceTz, time
 
             <div className="grid gap-2">
               <Label>Media</Label>
-              {media.length === 0 ? <p className="text-sm text-muted-foreground">Nothing attached. Generate an image or video and click Attach.</p> : null}
+              {media.length === 0 ? <p className="text-sm text-muted-foreground">Nothing attached. Upload a file, or generate an image or video and click Attach.</p> : null}
               <div className="grid grid-cols-3 gap-2" data-testid="attached-media">
                 {media.map((m) => (
                   <div key={m.id} className="relative">
@@ -188,6 +189,7 @@ export function Composer({ options, initial, recent, accounts, workspaceTz, time
                   </div>
                 ))}
               </div>
+              {editable ? <MediaUpload onUploaded={(m) => setMedia((x) => (x.some((y) => y.id === m.id) ? x : [...x, m]))} /> : null}
             </div>
 
             {editable ? (
