@@ -19,7 +19,7 @@ export default async function AdminPlansPage() {
   const needsSync = provider === "stripe" && plans.some((p) => p.priceCents > 0 && (!p.stripePriceId || isMockPriceId(p.stripePriceId)));
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Plans &amp; pricing</h1>

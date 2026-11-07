@@ -31,7 +31,7 @@ export default async function AdminPage() {
   ]);
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <h1 className="text-2xl font-semibold tracking-tight">Platform overview</h1>
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
         <Card><CardHeader><CardDescription>Users</CardDescription><CardTitle className="text-3xl tabular-nums">{userCount}</CardTitle></CardHeader></Card>

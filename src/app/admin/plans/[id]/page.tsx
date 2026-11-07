@@ -18,7 +18,7 @@ export default async function EditPlanPage({ params, searchParams }: { params: P
   if (!plan) notFound();
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       {saved === "created" ? <p role="status" className="rounded-md border p-3 text-sm">Plan created.</p> : null}
       <Card>
         <CardHeader>

@@ -136,3 +136,43 @@ export async function refundCredits(workspaceId: string, amount: number, note?: 
   const run = (t: Tx) => t.creditLedgerEntry.create({ data: { workspaceId, delta: amount, reason: "refund", note } });
   return tx ? run(tx) : withTenantTx(workspaceId, run);
 }
+
+/** Net credits currently charged for one generation (positive = charged). */
+async function netChargedFor(tx: Tx, workspaceId: string, generationRequestId: string) {
+  const agg = await tx.creditLedgerEntry.aggregate({ where: { workspaceId, generationRequestId }, _sum: { delta: true } });
+  return -(agg._sum.delta ?? 0);
+}
+
+/**
+ * Idempotently make the net charge for a generation equal `cost`.
+ * Safe to call again on job retries: it never charges twice.
+ */
+export async function chargeGeneration(workspaceId: string, generationRequestId: string, cost: number) {
+  return withTenantTx(workspaceId, async (tx) => {
+    await lockWorkspaceCredits(tx, workspaceId);
+    const already = await netChargedFor(tx, workspaceId, generationRequestId);
+    const due = cost - already;
+    if (due <= 0) return { charged: already };
+    const ent = await getEntitlements(tx, workspaceId);
+    const remaining = creditsRemaining(ent, await getUsage(tx, workspaceId, ent));
+    if (remaining < due) {
+      throw new LimitExceededError(
+        `Not enough AI credits: ${remaining} left this period, ${due} needed. Upgrade or add your own API key.`,
+        "monthlyCredits",
+      );
+    }
+    await tx.creditLedgerEntry.create({ data: { workspaceId, delta: -due, reason: "generation", generationRequestId } });
+    return { charged: cost };
+  });
+}
+
+/** Idempotently return whatever is still charged for a generation. */
+export async function refundGeneration(workspaceId: string, generationRequestId: string, note?: string) {
+  return withTenantTx(workspaceId, async (tx) => {
+    await lockWorkspaceCredits(tx, workspaceId);
+    const net = await netChargedFor(tx, workspaceId, generationRequestId);
+    if (net <= 0) return 0;
+    await tx.creditLedgerEntry.create({ data: { workspaceId, delta: net, reason: "refund", generationRequestId, note } });
+    return net;
+  });
+}

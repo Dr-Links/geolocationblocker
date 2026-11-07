@@ -32,7 +32,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   const mock = getBillingProvider().name === "mock";
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         {mock ? <p className="text-sm text-muted-foreground">Test mode: payments are simulated (Stripe isn&apos;t connected yet).</p> : null}

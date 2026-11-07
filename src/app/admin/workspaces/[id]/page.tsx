@@ -30,7 +30,7 @@ export default async function AdminWorkspacePage({ params, searchParams }: { par
   const paid = sub ? hasPaidAccess(sub) : false;
 
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       {notice === "uncomped" ? <p role="status" className="rounded-md border p-3 text-sm">Comp removed. The workspace is back on its billed plan.</p> : null}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{ws.name}</h1>

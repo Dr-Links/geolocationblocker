@@ -4,7 +4,100 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 2: Billing ✅ (awaiting review)
+## Phase 3: AI generation ✅ (awaiting review)
+
+### What you can do
+- **Composer** (`/dashboard/compose`):
+  - Write a post, then generate **captions** (platform-aware, 1-3 options, tone), **images** (1:1, 4:5, 9:16, 16:9) or **short videos**.
+  - Text: **Use** or **Append** it. Media: preview it and **Attach** it to the post.
+  - Save as a draft with its media; drafts are listed and reopen with everything attached.
+- Each generation runs as an async job (`GenerationRequest` → BullMQ `generation` queue → worker). The UI polls until it's done and shows the provider, model, any fallback, and the credits used.
+- **Credit costs: 1 text / 5 image / 25 video** (your choice), editable in **Admin → AI**.
+- **AI settings** (`/dashboard/settings/ai`): default provider + model per content type, and bring-your-own API keys (BYOK). Keys are masked (only the last 4 characters show) and BYOK requires the plan feature.
+- **Admin → AI**: credit costs, platform API keys (encrypted in the DB, overriding env vars), and each provider's status.
+
+### Architecture (as specified)
+- Interfaces `TextGenerator` / `ImageGenerator` / `VideoGenerator` (`src/server/ai/types.ts`).
+- **Mocks, the zero-key default:**
+  - text: template captions built from the brief, respecting platform limits;
+  - image: a real PNG gradient at the requested aspect ratio;
+  - video: a real 4-second H.264 MP4, vertical or landscape.
+
+  Test hooks: `[mock:fail]` in the prompt simulates an outage, `[mock:refuse]` simulates a policy refusal.
+- **Real adapters** use each vendor's **official SDK**, with every SDK difference contained in its file:
+
+  | Adapter | Text | Image | Video |
+  |---|---|---|---|
+  | `anthropic.ts` (`@anthropic-ai/sdk`) | Claude | n/a | n/a |
+  | `openai.ts` (`openai`) | Responses API | `gpt-image-1` | Sora 2 Videos API (async polling) |
+  | `google.ts` (`@google/genai`) | Gemini (JSON) | Imagen | Veo (long-running operation + authenticated download) |
+  | `huggingface.ts` (`@huggingface/inference`) | chat | text-to-image | text-to-video (experimental) |
+
+  Each activates only when a key exists (platform key, env var, or the workspace's BYOK).
+- **Anthropic specifics:**
+  - default model `claude-opus-5-5`;
+  - structured output, so captions come back as validated JSON;
+  - `effort: "low"` (captions are a light task; change in `anthropic.ts`);
+  - **server-side refusal fallbacks enabled by default** (`fallbacks: "default"`) on models that support them. Tell me if you'd rather not have this;
+  - refusals become a clear "declined" message.
+- **Router** (`router.ts`) builds the provider chain:
+  1. the per-generation override, else the workspace default;
+  2. then other configured providers (with their default models);
+  3. then the mock, only when nothing real is configured, when the mock was explicitly chosen, or when `AI_FALLBACK_TO_MOCK=true`. In production a real-provider failure shouldn't silently return placeholder content.
+
+  Retryable errors (429/5xx/overload/timeouts/bad key) fall through to the next provider. **Refusals and invalid requests stop the chain**: we don't route around a safety refusal by shopping vendors.
+- **`GenerationService`** (`service.ts`) is the only thing the UI calls: `requestGeneration()` (validate, gate on feature/credits/rate limit, record, enqueue) and `processGeneration()` (worker).
+- **Keys & cost model:**
+  - Platform keys come from the DB (encrypted, Admin → AI) or env.
+  - The workspace's BYOK key wins when the plan allows it. **BYOK generations charge 0 credits.**
+  - Platform-key and mock generations charge the configured cost. Mock charges are intentional, so the usage meters and limits are exercised end to end.
+- **Credit settlement is idempotent per generation.** Charges and refunds carry the generation id, and the net is held at exactly the cost (or 0) under a per-workspace advisory lock. Writing tests surfaced a double-refund bug in my first design (a unique-constraint approach); this replaced it. Failed or refused generations are fully refunded, and job retries can't double-charge.
+- **Storage:** an S3/R2 adapter when `S3_*` is set, else local files (`STORAGE_LOCAL_DIR`; docker-compose shares a volume between app and worker).
+  - Media is always served through `/api/media/[id]`, which checks the tenant first: another workspace's id is a 404 thanks to RLS. S3 gets a 15-minute signed redirect; local files are streamed with Range support for video.
+  - Keys are tenant-prefixed (`workspaces/<id>/…`).
+- **Worker** now runs the `generation` queue (concurrency `AI_WORKER_CONCURRENCY`), has an optional health endpoint (`WORKER_HEALTH_PORT`), and loads `.env` itself.
+
+### Limits wired this phase
+- **AI video** is gated on the plan's `video` feature.
+- **Credits** are checked at request time (fast feedback) and again atomically when the worker charges.
+- **BYOK** is gated on the plan's `byok` feature.
+- **Posts per period** are enforced when a draft is created.
+- **Rate limit:** 20 generations per workspace per minute (env).
+
+### Decisions / notes
+- Model names are **suggestions, not restrictions**: workspaces can enter any model id the provider accepts. Defaults were taken from the installed SDKs' own type definitions and doc examples (e.g. `gpt-5.5`, `gpt-image-1`, `sora-2`, `gemini-3.8-flash`, `imagen-4.0-generate-001`, `veo-2.0-generate-001`).
+- **The real adapters have not been called against live APIs** (no keys yet). They're unit-tested against fake SDK clients for request shape, response parsing, refusal handling, retry classification and the async video polling. Expect minor adjustments on first live use, especially for video, where account access varies (Sora, Veo).
+- E2E tests run their own app + worker on a separate Redis DB, so a dev worker can't steal test jobs.
+- Fixed while checking layouts: page grids overflowed on phones (this included the Phase 1 members page). Every page now fits 390 px.
+
+### Tests added
+- **Unit (36):** mock generators (real PNG/MP4 output), the caption prompt and parser, error classification, every adapter against fake SDK clients, and router planning (BYOK precedence, plan gating, fallback order, mock policy).
+- **Integration (18):**
+  - the mock pipeline for all three types, with correct credit charges;
+  - admin-set costs; input validation;
+  - fallback across providers with a single charge; a refusal stopping the chain and refunding;
+  - all-providers-failing with a safe error message;
+  - workspace preference vs. per-generation override;
+  - BYOK (key used, 0 credits, encrypted, isolated);
+  - BYOK gated by plan; platform-key precedence over env;
+  - out-of-credits at request time and when the worker runs;
+  - idempotent charge, refund and processing;
+  - cross-tenant generation/media isolation; the rate limit.
+- **E2E (6):**
+  - generate caption, image and video, attach, save and reload the draft;
+  - free plan: video locked, credits decreasing, failures refunded;
+  - media isolation across workspaces (404);
+  - admin cost change reflected in the composer;
+  - AI defaults and a masked BYOK key; free plan blocked from BYOK.
+- Totals: **171 unit/integration + 24 e2e, all passing.**
+
+### Needs you
+- **Provider API keys** to go live: Anthropic, OpenAI, Google and/or Hugging Face. Add them in Admin → AI (stored encrypted) or as env vars. Each one turns on independently.
+- **S3/R2 bucket credentials** for production media (local disk works for a single server; Phase 4 publishing to Instagram/TikTok will need publicly fetchable URLs, which S3 signed URLs provide).
+
+---
+
+## Phase 2: Billing ✅
 
 ### Your direction: the admin sets and changes all prices
 - **Admin → Plans** (`/admin/plans`): create and edit plans. Each plan has a price, currency, monthly/yearly interval, four usage limits (-1 = unlimited), three feature flags (video, bring-your-own-key, recurring posts), plus active/visible flags and sort order.

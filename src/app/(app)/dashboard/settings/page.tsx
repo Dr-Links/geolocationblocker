@@ -11,11 +11,13 @@ export default async function SettingsPage() {
   const ws = await ctx.db.workspace.findUniqueOrThrow({ where: { id: ctx.workspaceId } });
   const canEdit = can(ctx.role, "workspace.update");
   return (
-    <div className="grid gap-6">
+    <div className="grid grid-cols-1 gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Workspace settings</h1>
         <p className="text-sm text-muted-foreground">
           <Link href="/dashboard/settings/members" className="underline underline-offset-4">Manage members</Link>
+          {" · "}
+          <Link href="/dashboard/settings/ai" className="underline underline-offset-4">AI settings</Link>
         </p>
       </div>
       <Card>

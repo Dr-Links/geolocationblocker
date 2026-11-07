@@ -48,7 +48,7 @@ export function PlanForm({ plan, subscriberCount = 0 }: { plan: PlanFormValues; 
   const fe = state.fieldErrors ?? {};
   const isFree = plan.key === "free";
   return (
-    <form action={action} className="grid gap-6">
+    <form action={action} className="grid grid-cols-1 gap-6">
       {editing ? <input type="hidden" name="planId" value={plan.id} /> : null}
 
       <section className="grid gap-4 sm:grid-cols-2">
