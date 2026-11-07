@@ -113,6 +113,7 @@ test("partial failure → retry failed only; unschedule; delete", async ({ page 
   await expect(page).toHaveURL(/tab=scheduled/);
   const lc = page.getByTestId("posts-list").locator("[data-testid^=post-]", { hasText: later });
   await lc.getByRole("button", { name: "Unschedule" }).click();
+  await expect(lc.getByRole("status")).toContainText("Unscheduled"); // wait for the action before navigating
   await page.goto("/dashboard/posts?tab=drafts");
   const dc = page.getByTestId("posts-list").locator("[data-testid^=post-]", { hasText: later });
   await expect(dc.getByTestId("post-status")).toHaveText("draft");

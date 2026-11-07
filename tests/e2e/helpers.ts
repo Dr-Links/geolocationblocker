@@ -28,6 +28,9 @@ export async function logIn(page: Page, email: string, password = PASSWORD) {
 export async function signOut(page: Page) {
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/login/);
+  // The sign-out response must have cleared the session cookie before we continue.
+  await expect(page.getByRole("button", { name: "Log in" })).toBeVisible();
+  await expect.poll(async () => (await page.context().cookies()).some((c) => c.name.includes("authjs.session-token"))).toBe(false);
 }
 
 export const seed = {
