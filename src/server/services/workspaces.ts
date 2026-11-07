@@ -4,7 +4,7 @@ import { slugify } from "@/lib/utils";
 import { createWorkspaceSchema, updateWorkspaceSchema } from "@/lib/validation/workspace";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
-import { recordAudit } from "./audit";
+import { auditActor, recordAudit } from "./audit";
 
 /** Must run with bypass (slugs are globally unique across tenants). */
 export async function uniqueWorkspaceSlug(tx: Tx, name: string) {
@@ -55,8 +55,7 @@ export async function updateWorkspace(ctx: TenantContext, input: { name: string;
     await recordAudit(
       {
         action: "workspace.update",
-        actorId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+        ...auditActor(ctx),
         targetType: "Workspace",
         targetId: ctx.workspaceId,
         metadata: { before: { name: before.name, timezone: before.timezone }, after: data },

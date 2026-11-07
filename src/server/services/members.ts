@@ -7,7 +7,7 @@ import { getMailer } from "@/server/mail";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
 import { assertWithinLimit } from "@/server/billing/entitlements";
-import { recordAudit } from "./audit";
+import { auditActor, recordAudit } from "./audit";
 
 export const INVITE_TTL_DAYS = 7;
 
@@ -51,8 +51,7 @@ export async function changeMemberRole(ctx: TenantContext, membershipId: string,
     await recordAudit(
       {
         action: "member.role_change",
-        actorId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+        ...auditActor(ctx),
         targetType: "Membership",
         targetId: m.id,
         metadata: { userId: m.userId, from: m.role, to: newRole },
@@ -75,8 +74,7 @@ export async function removeMember(ctx: TenantContext, membershipId: string) {
     await recordAudit(
       {
         action: isSelf ? "member.leave" : "member.remove",
-        actorId: ctx.userId,
-        workspaceId: ctx.workspaceId,
+        ...auditActor(ctx),
         targetType: "Membership",
         targetId: m.id,
         metadata: { userId: m.userId, role: m.role },
@@ -152,7 +150,7 @@ export async function createInvitation(ctx: TenantContext, input: { email: strin
   const { invitation, url } = await withTenantTx(ctx.workspaceId, async (tx) => {
     const res = await createInvitationTx(tx, { workspaceId: ctx.workspaceId, email, role, invitedById: ctx.userId });
     await recordAudit(
-      { action: "invitation.create", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Invitation", targetId: res.invitation.id, metadata: { email, role } },
+      { action: "invitation.create", ...auditActor(ctx), targetType: "Invitation", targetId: res.invitation.id, metadata: { email, role } },
       tx,
     );
     return res;
@@ -169,7 +167,7 @@ export async function revokeInvitation(ctx: TenantContext, invitationId: string)
     if (!inv || inv.acceptedAt || inv.revokedAt) throw new NotFoundError("Invitation not found");
     await tx.invitation.update({ where: { id: inv.id }, data: { revokedAt: new Date() } });
     await recordAudit(
-      { action: "invitation.revoke", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Invitation", targetId: inv.id },
+      { action: "invitation.revoke", ...auditActor(ctx), targetType: "Invitation", targetId: inv.id },
       tx,
     );
   });

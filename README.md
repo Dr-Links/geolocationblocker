@@ -3,7 +3,7 @@
 Multi-tenant SaaS: generate social content with AI, schedule it, and auto-publish to connected accounts.
 Every external integration (AI providers, social platforms, Stripe, S3) **defaults to a mock**, so the app works end-to-end with no live credentials.
 
-> Status: **Phase 5 (composer + scheduling)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
+> Status: **Phase 6 (dashboards, analytics, audit log, impersonation)**. See [`BUILD_NOTES.md`](./BUILD_NOTES.md) for decisions and what's stubbed.
 
 ## Quick start (Docker)
 
@@ -84,6 +84,15 @@ stripe listen --forward-to localhost:3000/api/webhooks/stripe
 - **Composer**: pick accounts, write once (optionally customize per platform), attach AI media, and check the live per-platform previews. Then **Publish now**, **Schedule** (date, time, timezone, optional repeat) or **Add to queue**.
 - The **worker must be running** (`npm run worker:dev`, or the `worker` service in docker-compose): it publishes at the scheduled time, retries transient failures (1, 5, 15 minutes), and marks each platform's result.
 - **Posts** shows per-platform status, links and errors, with Retry failed. **Calendar** shows the month and holds your posting-queue time slots.
+
+## Running the platform (admin)
+Sign in as a SUPER_ADMIN and open **Admin**:
+- **Overview** shows revenue and usage charts.
+- **Workspaces**: search, comp, suspend, and **support mode**, where you act inside a workspace as its admin for 60 minutes. A reason is required, everything you do is audited, and billing and AI keys stay locked.
+- **Users**: disable, force sign-out, and grant or revoke SUPER_ADMIN.
+- **Plans** and **AI** hold prices, limits, credit costs and keys.
+- **Publishing ops**: failures, stuck posts and queue health.
+- **Audit log**: a filterable history of every action.
 
 ## Scripts
 | Script | What |

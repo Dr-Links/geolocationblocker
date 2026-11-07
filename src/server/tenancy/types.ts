@@ -8,4 +8,6 @@ export interface TenantContext {
   workspaceId: string;
   role: WorkspaceRole;
   db: TenantDb;
+  /** Set while a SUPER_ADMIN is impersonating this workspace for support (their user id). */
+  impersonatorId?: string | null;
 }

@@ -10,11 +10,17 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <div className="flex flex-wrap items-center gap-3">
           <Link href="/admin" className="font-bold tracking-tight">Postpilot Admin</Link>
           <span className="rounded bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">SUPER_ADMIN</span>
-          <nav className="flex gap-3 text-sm">
-            <Link href="/admin" className="hover:underline">Overview</Link>
-            <Link href="/admin/plans" className="hover:underline">Plans</Link>
-            <Link href="/admin/ai" className="hover:underline">AI</Link>
-            <Link href="/admin/accounts/new" className="hover:underline">Create free account</Link>
+          <nav className="flex flex-wrap gap-x-3 gap-y-1 text-sm" aria-label="Admin">
+            {[
+              ["/admin", "Overview"],
+              ["/admin/workspaces", "Workspaces"],
+              ["/admin/users", "Users"],
+              ["/admin/plans", "Plans"],
+              ["/admin/ai", "AI"],
+              ["/admin/ops", "Publishing ops"],
+              ["/admin/audit", "Audit log"],
+              ["/admin/accounts/new", "Create free account"],
+            ].map(([href, label]) => <Link key={href} href={href!} className="hover:underline">{label}</Link>)}
           </nav>
         </div>
         <div className="flex items-center gap-4 text-sm">

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { WorkspaceSwitcher } from "@/components/app/workspace-switcher";
 import { getTenantContext, listMyWorkspaces } from "@/server/tenancy/context";
 import { signOutAction } from "../(auth)/actions";
+import { stopImpersonationAction } from "../impersonation-actions";
 
 const nav = [
   { href: "/dashboard", label: "Overview", icon: LayoutDashboard, ready: true },
@@ -21,20 +22,28 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const workspaces = await listMyWorkspaces(ctx.userId);
   const { user } = ctx;
 
+  const imp = ctx.impersonation;
   return (
+    <>
+    {imp ? (
+      <div role="alert" data-testid="impersonation-banner" className="sticky top-0 z-50 flex flex-wrap items-center justify-between gap-2 bg-amber-500 px-4 py-2 text-sm font-medium text-black">
+        <span>Support mode: you are acting inside <strong>{imp.workspaceName}</strong> as its admin. Reason: “{imp.r}”. Actions are audited; billing and API keys are locked.</span>
+        <form action={stopImpersonationAction}><Button type="submit" size="sm" variant="outline" className="border-black/30 bg-white/80 text-black hover:bg-white">Exit support mode</Button></form>
+      </div>
+    ) : null}
     <div className="flex min-h-screen flex-col md:flex-row">
       <aside className="border-b md:w-60 md:shrink-0 md:border-b-0 md:border-r">
         <div className="grid gap-3 p-4">
           <Link href="/dashboard" className="text-lg font-bold tracking-tight">Postpilot</Link>
           <div className="flex items-center gap-2">
             <div className="min-w-0 flex-1">
-              <WorkspaceSwitcher workspaces={workspaces} activeId={ctx.workspaceId} />
+              {imp ? <p className="truncate rounded-md border px-3 py-2 text-sm">{imp.workspaceName}</p> : <WorkspaceSwitcher workspaces={workspaces} activeId={ctx.workspaceId} />}
             </div>
             <Button asChild variant="ghost" size="icon" title="New workspace">
               <Link href="/dashboard/workspaces/new" aria-label="New workspace"><Plus /></Link>
             </Button>
           </div>
-          <p className="sr-only" data-testid="workspace-name">{workspaces.find((w) => w.id === ctx.workspaceId)?.name}</p>
+          <p className="sr-only" data-testid="workspace-name">{imp ? imp.workspaceName : workspaces.find((w) => w.id === ctx.workspaceId)?.name}</p>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-2 pb-2 md:flex-col md:pb-4">
           {nav.map(({ href, label, icon: Icon, ready }) =>
@@ -65,5 +74,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         <main className="flex-1 p-4 md:p-8">{children}</main>
       </div>
     </div>
+    </>
   );
 }

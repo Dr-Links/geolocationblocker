@@ -24,7 +24,8 @@ const TYPES = [
 
 export default async function AiSettingsPage() {
   const ctx = await requireTenant("workspace.view");
-  const canEdit = can(ctx.role, "settings.ai");
+  // Support staff impersonating a workspace can see but not change billing or AI keys.
+  const canEdit = can(ctx.role, "settings.ai") && !ctx.impersonatorId;
   const [ws, keys, ent] = await Promise.all([
     ctx.db.workspace.findUniqueOrThrow({ where: { id: ctx.workspaceId }, select: { aiPreferences: true } }),
     listWorkspaceKeys(ctx),
@@ -34,7 +35,8 @@ export default async function AiSettingsPage() {
 
   return (
     <div className="grid grid-cols-1 gap-6">
-      <h1 className="text-2xl font-semibold tracking-tight">AI settings</h1>
+      {ctx.impersonatorId ? <p className="mb-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm" data-testid="impersonation-readonly">Read-only in support mode.</p> : null}
+        <h1 className="text-2xl font-semibold tracking-tight">AI settings</h1>
       <Card>
         <CardHeader>
           <CardTitle>Default provider &amp; model</CardTitle>

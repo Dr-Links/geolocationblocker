@@ -25,3 +25,8 @@ export async function recordAudit(entry: AuditEntry, tx?: Tx) {
   else await systemDb.auditLog.create({ data });
   logger.info({ audit: entry.action, actorId: entry.actorId, workspaceId: entry.workspaceId, targetId: entry.targetId }, "audit");
 }
+
+/** Actor fields for an audit entry made inside a tenant context (records the impersonating admin too). */
+export function auditActor(ctx: { userId: string; workspaceId: string; impersonatorId?: string | null }) {
+  return { actorId: ctx.userId, workspaceId: ctx.workspaceId, impersonatorId: ctx.impersonatorId ?? null };
+}

@@ -4,7 +4,77 @@ Running log of decisions, assumptions, and stubs. Newest phase at the top.
 
 ---
 
-## Phase 5: Composer + scheduling engine ✅ (awaiting review)
+## Phase 6: Dashboards, analytics, audit log, impersonation ✅ (awaiting review)
+
+### Acceptance
+**You can manage the whole platform from the admin UI** (`/admin`, SUPER_ADMIN only). Every action below is covered by an e2e test that drives the real UI:
+- find a workspace, suspend it (its members land on `/suspended` at once), and reinstate it;
+- open a workspace in support mode, confirm billing is locked, make a change, and exit back to admin;
+- disable a user (they're signed out immediately and can't log back in), re-enable them, and grant or revoke SUPER_ADMIN;
+- filter the audit log to find those actions.
+
+### Admin UI map
+| Page | What you can do |
+|---|---|
+| **Overview** `/admin` | MRR/ARR, paying · comped · past-due, users, workspaces, 30-day publishes and generations, failed publishes, accounts needing reconnect. Charts: sign-ups/day, publishes/day, generations/day by type, and publish success by platform. Revenue by plan. |
+| **Workspaces** `/admin/workspaces` | Search by name, slug or member email. Filter: all / paying / comped / free / suspended. Detail page: entitlements, comp/uncomp (Phase 2), **support access**, **suspend/reinstate** (reason required), connected accounts, recent posts, members, and the workspace's audit trail. |
+| **Users** `/admin/users` | Search, filter (all / super admins / disabled). Detail page: memberships, **disable/enable**, **force sign-out everywhere**, **grant/revoke SUPER_ADMIN**, and recent activity. |
+| **Plans** / **AI** | Prices, limits, credit costs, platform AI keys (Phases 2–3, unchanged). |
+| **Publishing ops** `/admin/ops` | Failed publishes across all tenants with the platform's error, accounts that need reconnecting, posts stuck in "publishing", failed generations, and live BullMQ queue counts (it flags an unreachable Redis). |
+| **Audit log** `/admin/audit` | Filter by action, actor email, workspace, date range, and "support only". JSON details per row, paginated. |
+
+### Support impersonation: how it's kept safe
+- **Explicit and time-boxed.** It starts from the workspace page with a **required reason** and lasts 60 minutes. The token is a signed, httpOnly cookie (`pp_imp`) **bound to the admin's user id**: it is useless to anyone else, expires after 60 minutes, and stops working at once if the admin loses SUPER_ADMIN.
+- **The admin acts as a WORKSPACE_ADMIN of that workspace,** with the same RLS-scoped DB handle as a real member. Support can't see more than the workspace's own admin could.
+- **Locked while impersonating:** billing (`billing.manage`) and AI keys (`settings.ai`). This is enforced in `assertCan`, so every service path refuses, not only the UI. The pages show "Read-only in support mode".
+- **Always visible:** an amber banner on every page, with the reason and an **Exit support mode** button.
+- **Fully attributed:** every audit row written meanwhile has `actorId = admin` *and* `impersonatorId = admin`. The log shows "via admin@…", and start and stop are audited too.
+- *Deviation, justified:* I didn't use "log in as the user". Becoming the user would make support actions indistinguishable from theirs and would expose their other workspaces. Acting as an admin *of one workspace* with attribution is safer and enough for support.
+
+### Suspension semantics
+- Members are redirected to `/suspended`; SUPER_ADMINs can still open the workspace.
+- **Scheduled posts don't go out while suspended.** At publish time they're marked FAILED with "the workspace was suspended at the scheduled time" rather than silently held. That's visible to the customer, and it avoids a burst of stale posts when the workspace is reinstated. (Tested.)
+
+### User-management guards
+- You can't disable yourself or remove your own SUPER_ADMIN role.
+- The **last active SUPER_ADMIN** can't be disabled or demoted, so you can never lock yourself out of the platform.
+- Disable, force sign-out and role changes bump `sessionVersion`, so the user's existing JWTs are rejected on their next request, not when they expire.
+
+### User dashboard (`/dashboard`)
+Stat tiles and plan usage are kept as they were. New sections:
+- **Needs attention:** failed or partially published posts from the last 14 days, and expired or erroring accounts, each with a link to fix it.
+- **Coming up:** the next 5 scheduled posts, with time, platforms and whether they repeat.
+- **Recently published:** the last 5 published posts.
+- **30-day analytics:** publishes/day, generations/day by type, and success rate per platform.
+
+### Analytics: how it's computed
+- Live SQL over existing tables. There's no event pipeline and no new tables: a published `PostTarget` is a publish, a `GenerationRequest` is a generation, and `CreditLedgerEntry` gives credits used. The daily series are zero-filled in UTC.
+- **Workspace analytics run inside a tenant transaction,** so RLS scopes even the raw SQL. A test checks that workspace A's charts never count workspace B's posts.
+- Charts are dependency-free server-rendered SVG:
+  - colours are validated for colour-blind safety in both themes (`--series-1..3`);
+  - each bar has a hover tooltip;
+  - stacked series have a legend;
+  - every chart has a "View as table" fallback.
+- *Not included:* platform-side engagement (likes, reach). It needs each network's insights API and real credentials. The `SocialPublisher` interface can grow a `fetchMetrics()` when you connect real accounts.
+
+### Tests added
+- Integration tests (12):
+  - impersonation permission locks and audit attribution;
+  - disable, sign-out and role guards, including the last-admin guard;
+  - workspace filters and search, plus the suspend conflict and validation;
+  - a suspended workspace's due post fails without calling the publisher;
+  - audit filters;
+  - analytics zero-fill and tenant scoping;
+  - the ops overview.
+- e2e (5): suspend/reinstate plus the audit filter, the impersonation flow, user disable/enable/promote, admin overview + ops rendering, and the user dashboard analytics.
+- Totals: **251 unit/integration** and **39 e2e**, all passing. There's no horizontal overflow at 390px on any new page.
+
+### Stubbed / needs you
+- Nothing new is blocked on you. Engagement analytics are waiting on real platform credentials (see above).
+
+---
+
+## Phase 5: Composer + scheduling engine ✅
 
 ### Acceptance
 **A post scheduled for a given time is published via the mock at that time, and shows the right status throughout.** This is proven end to end in the browser:

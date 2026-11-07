@@ -6,7 +6,7 @@ import { isValidTimezone, localToUtc } from "@/lib/time";
 import { assertFeature, assertWithinLimit } from "@/server/billing/entitlements";
 import { ConflictError, NotFoundError } from "@/server/errors";
 import { enforceRateLimit, envLimit } from "@/server/rate-limit";
-import { recordAudit } from "@/server/services/audit";
+import { auditActor, recordAudit } from "@/server/services/audit";
 import { loadPublishMedia } from "@/server/social/accounts";
 import { publisherForAccount } from "@/server/social/registry";
 import type { ValidationResult } from "@/server/social/types";
@@ -179,7 +179,7 @@ export async function schedulePost(ctx: TenantContext, postId: string, input: Sc
     await tx.postTarget.updateMany({ where: { postId, status: { not: "PUBLISHED" } }, data: { status: "PENDING", attempts: 0, lastError: null, nextAttemptAt: null } });
     const updated = await tx.post.update({ where: { id: postId }, data: { status: "SCHEDULED", seriesId: recurrenceRule ? (post.seriesId ?? post.id) : post.seriesId } });
     await recordAudit(
-      { action: data.mode === "now" ? "post.publish_now" : "post.schedule", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Post", targetId: postId, metadata: { scheduledAt: scheduledAt.toISOString(), timezone: tz, recurrenceRule, mode: data.mode } },
+      { action: data.mode === "now" ? "post.publish_now" : "post.schedule", ...auditActor(ctx), targetType: "Post", targetId: postId, metadata: { scheduledAt: scheduledAt.toISOString(), timezone: tz, recurrenceRule, mode: data.mode } },
       tx,
     );
     return { ok: true as const, post: updated, scheduledAt, checks };
@@ -196,7 +196,7 @@ export async function unschedulePost(ctx: TenantContext, postId: string) {
     const { count } = await tx.post.updateMany({ where: { id: postId, status: "SCHEDULED" }, data: { status: "DRAFT" } });
     if (!count) throw new ConflictError("Only scheduled posts that haven't started publishing can be unscheduled.");
     await tx.postSchedule.deleteMany({ where: { postId } });
-    await recordAudit({ action: "post.unschedule", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Post", targetId: postId }, tx);
+    await recordAudit({ action: "post.unschedule", ...auditActor(ctx), targetType: "Post", targetId: postId }, tx);
   });
   await cancelPublishJobs(postId);
 }
@@ -213,7 +213,7 @@ export async function retryFailedTargets(ctx: TenantContext, postId: string) {
     const now = new Date();
     await tx.postSchedule.upsert({ where: { postId }, update: { scheduledAt: now }, create: { postId, scheduledAt: now, timezone: "UTC" } });
     await tx.post.update({ where: { id: postId }, data: { status: "SCHEDULED" } });
-    await recordAudit({ action: "post.retry", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Post", targetId: postId, metadata: { targets: count } }, tx);
+    await recordAudit({ action: "post.retry", ...auditActor(ctx), targetType: "Post", targetId: postId, metadata: { targets: count } }, tx);
   });
   await enqueuePublish(postId, new Date());
 }
@@ -223,7 +223,7 @@ export async function deletePost(ctx: TenantContext, postId: string) {
   await withTenantTx(ctx.workspaceId, async (tx) => {
     const { count } = await tx.post.deleteMany({ where: { id: postId, status: { not: "PUBLISHING" } } });
     if (!count) throw new ConflictError("This post can't be deleted right now (it may be publishing).");
-    await recordAudit({ action: "post.delete", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Post", targetId: postId }, tx);
+    await recordAudit({ action: "post.delete", ...auditActor(ctx), targetType: "Post", targetId: postId }, tx);
   });
   await cancelPublishJobs(postId);
 }
@@ -272,7 +272,7 @@ export async function updateQueueSlots(ctx: TenantContext, raw: unknown) {
   const slots = parseSlots(slotsSchema.parse(raw));
   await withTenantTx(ctx.workspaceId, async (tx) => {
     await tx.workspace.update({ where: { id: ctx.workspaceId }, data: { queueSlots: slots } });
-    await recordAudit({ action: "workspace.queue_slots", actorId: ctx.userId, workspaceId: ctx.workspaceId, metadata: { slots } }, tx);
+    await recordAudit({ action: "workspace.queue_slots", ...auditActor(ctx), metadata: { slots } }, tx);
   });
   return slots;
 }

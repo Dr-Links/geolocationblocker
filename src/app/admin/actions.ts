@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { idSchema } from "@/lib/validation/workspace";
+import { forceSignOut, setPlatformRole, setUserDisabled, setWorkspaceSuspended, startImpersonation } from "@/server/admin/management";
 import { toActionState, type ActionState } from "@/server/action-state";
 import { compWorkspace, createCompedAccount, removeComp } from "@/server/billing/comp";
 import { FEATURE_KEYS, LIMIT_KEYS, type CompOverrides } from "@/server/billing/limits";
@@ -141,4 +142,63 @@ export async function createCompedAccountAction(_prev: ActionState, formData: Fo
   } catch (err) {
     return toActionState(err, formValues(formData));
   }
+}
+
+// ─── Phase 6: platform management ──────────────────────────────────────────
+
+
+export async function suspendWorkspaceAction(_prev: ActionState, f: FormData): Promise<ActionState> {
+  let id: string;
+  try {
+    const admin = await requireSuperAdmin();
+    id = idSchema.parse(f.get("workspaceId"));
+    await setWorkspaceSuspended(admin.id, id, f.get("suspend") === "true", String(f.get("reason") ?? "") || undefined);
+  } catch (err) {
+    return toActionState(err);
+  }
+  revalidatePath("/admin", "layout");
+  redirect(`/admin/workspaces/${id}?notice=${f.get("suspend") === "true" ? "suspended" : "unsuspended"}`);
+}
+
+export async function impersonateAction(_prev: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const admin = await requireSuperAdmin();
+    await startImpersonation(admin.id, idSchema.parse(f.get("workspaceId")), String(f.get("reason") ?? ""));
+  } catch (err) {
+    return toActionState(err);
+  }
+  revalidatePath("/", "layout");
+  redirect("/dashboard");
+}
+
+export async function userDisabledAction(_prev: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const admin = await requireSuperAdmin();
+    await setUserDisabled(admin.id, idSchema.parse(f.get("userId")), f.get("disable") === "true", String(f.get("reason") ?? "") || undefined);
+  } catch (err) {
+    return toActionState(err);
+  }
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: f.get("disable") === "true" ? "User disabled and signed out everywhere." : "User re-enabled." };
+}
+
+export async function forceSignOutAction(_prev: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const admin = await requireSuperAdmin();
+    await forceSignOut(admin.id, idSchema.parse(f.get("userId")));
+  } catch (err) {
+    return toActionState(err);
+  }
+  return { ok: true, message: "All of this user's sessions were signed out." };
+}
+
+export async function platformRoleAction(_prev: ActionState, f: FormData): Promise<ActionState> {
+  try {
+    const admin = await requireSuperAdmin();
+    await setPlatformRole(admin.id, idSchema.parse(f.get("userId")), f.get("role") === "SUPER_ADMIN" ? "SUPER_ADMIN" : "USER");
+  } catch (err) {
+    return toActionState(err);
+  }
+  revalidatePath("/admin", "layout");
+  return { ok: true, message: "Role updated. They'll need to sign in again." };
 }

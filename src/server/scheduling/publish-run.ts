@@ -37,6 +37,16 @@ export async function processPublishJob(postId: string, now = new Date()): Promi
   });
   if (!post || post.status !== "PUBLISHING") return { postId, status: "SKIPPED", published: 0, failed: 0, pending: 0 };
 
+  // Suspended workspaces don't publish. Fail clearly rather than posting late after reinstatement.
+  const ws = await systemDb.workspace.findUnique({ where: { id: post.workspaceId }, select: { suspendedAt: true } });
+  if (ws?.suspendedAt) {
+    await systemDb.postTarget.updateMany({
+      where: { postId, status: "PENDING" },
+      data: { status: "FAILED", lastError: "Not published: the workspace was suspended at the scheduled time.", nextAttemptAt: null },
+    });
+    return finalize(postId, now);
+  }
+
   // 2. Publish each due target.
   const media = await withTenantTx(post.workspaceId, (tx) => loadPublishMedia(tx, post.media.map((m) => m.mediaAssetId)));
   for (const target of post.targets) {

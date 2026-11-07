@@ -8,6 +8,7 @@ import { ForbiddenError } from "@/server/errors";
 import { assertCan } from "./guard";
 import type { Permission } from "./permissions";
 import type { TenantContext } from "./types";
+import { readImpersonation, type ImpersonationToken } from "./impersonation";
 
 export const ACTIVE_WORKSPACE_COOKIE = "pp_ws";
 
@@ -61,8 +62,29 @@ export const listMyWorkspaces = cache(async (userId: string) => {
  * Resolve the active workspace for this request: cookie → verified membership,
  * else the user's first workspace. No memberships → onboarding.
  */
-export const getTenantContext = cache(async (): Promise<TenantContext & { user: SessionUser }> => {
+export const getTenantContext = cache(async (): Promise<TenantContext & { user: SessionUser; impersonation: (ImpersonationToken & { workspaceName: string }) | null }> => {
   const user = await requireUser();
+
+  // SUPER_ADMIN support impersonation takes precedence over the user's own workspaces.
+  if (user.platformRole === "SUPER_ADMIN") {
+    const imp = await readImpersonation(user.id);
+    if (imp) {
+      const ws = await systemDb.workspace.findUnique({ where: { id: imp.w }, select: { id: true, name: true } });
+      if (ws) {
+        return {
+          user,
+          userId: user.id,
+          platformRole: user.platformRole,
+          workspaceId: ws.id,
+          role: "WORKSPACE_ADMIN",
+          db: tenantDb(ws.id),
+          impersonatorId: user.id,
+          impersonation: { ...imp, workspaceName: ws.name },
+        };
+      }
+    }
+  }
+
   const workspaces = await listMyWorkspaces(user.id);
   if (workspaces.length === 0) redirect("/onboarding");
 
@@ -78,6 +100,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext & { user: 
     workspaceId: active.id,
     role: active.role,
     db: tenantDb(active.id),
+    impersonatorId: null,
+    impersonation: null,
   };
 });
 

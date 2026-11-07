@@ -10,6 +10,9 @@ import { hasPaidAccess, isCompActive } from "@/server/billing/limits";
 import { NotFoundError } from "@/server/errors";
 import { requireSuperAdmin } from "@/server/tenancy/context";
 import { CompForm, RemoveCompForm } from "./comp-forms";
+import { ImpersonateForm, SuspendForm } from "./support-forms";
+import { PLATFORM_RULES } from "@/lib/platforms";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 export const metadata = { title: "Workspace" };
 export const dynamic = "force-dynamic";
@@ -24,6 +27,11 @@ export default async function AdminWorkspacePage({ params, searchParams }: { par
     const ent = await getEntitlements(tx, id);
     return { ent, usage: await getUsage(tx, id, ent) };
   });
+  const [accounts, posts, audit] = await Promise.all([
+    systemDb.socialAccount.findMany({ where: { workspaceId: id }, orderBy: { createdAt: "asc" } }),
+    systemDb.post.findMany({ where: { workspaceId: id }, orderBy: { updatedAt: "desc" }, take: 10, include: { targets: { select: { status: true } }, schedule: true } }),
+    systemDb.auditLog.findMany({ where: { workspaceId: id }, orderBy: { createdAt: "desc" }, take: 15, include: { actor: { select: { email: true } }, impersonator: { select: { email: true } } } }),
+  ]);
   const plans = await systemDb.plan.findMany({ where: { isActive: true }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } });
   const sub = ws.subscription;
   const comped = sub ? isCompActive(sub, new Date()) : false;
@@ -32,6 +40,8 @@ export default async function AdminWorkspacePage({ params, searchParams }: { par
   return (
     <div className="grid grid-cols-1 gap-6">
       {notice === "uncomped" ? <p role="status" className="rounded-md border p-3 text-sm">Comp removed. The workspace is back on its billed plan.</p> : null}
+      {notice === "suspended" ? <p role="status" className="rounded-md border border-destructive/40 p-3 text-sm">Workspace suspended. Members are locked out and scheduled posts won&apos;t publish.</p> : null}
+      {notice === "unsuspended" ? <p role="status" className="rounded-md border p-3 text-sm">Workspace reinstated.</p> : null}
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">{ws.name}</h1>
         <p className="text-sm text-muted-foreground">{ws.slug} · created {formatDate(ws.createdAt)} · {ws._count.posts} posts · {ws._count.socialAccounts} accounts</p>
@@ -66,6 +76,61 @@ export default async function AdminWorkspacePage({ params, searchParams }: { par
           <CardContent><RemoveCompForm workspaceId={ws.id} /></CardContent>
         </Card>
       ) : null}
+
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle>Support access</CardTitle><CardDescription>Act inside this workspace as its admin for 60 minutes. Everything you do is audited; billing and API keys stay locked.</CardDescription></CardHeader>
+          <CardContent><ImpersonateForm workspaceId={ws.id} /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">Suspension {ws.suspendedAt ? <Badge variant="destructive" data-testid="suspended-badge">suspended {formatDate(ws.suspendedAt)}</Badge> : null}</CardTitle>
+            <CardDescription>Suspended workspaces can&apos;t be used by their members and don&apos;t publish.</CardDescription>
+          </CardHeader>
+          <CardContent><SuspendForm workspaceId={ws.id} suspended={!!ws.suspendedAt} /></CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader><CardTitle>Connected accounts</CardTitle></CardHeader>
+        <CardContent className="grid gap-1 text-sm">
+          {accounts.length === 0 ? <span className="text-muted-foreground">None.</span> : null}
+          {accounts.map((a) => (
+            <span key={a.id}>{PLATFORM_RULES[a.platform].label} · {a.handle ?? a.displayName} · <Badge variant={a.status === "CONNECTED" ? "outline" : "destructive"}>{a.status.toLowerCase()}</Badge>{a.isMock ? " (mock)" : ""}{a.lastError ? <span className="text-xs text-destructive"> {a.lastError}</span> : null}</span>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Recent posts</CardTitle></CardHeader>
+        <CardContent className="grid gap-1 text-sm">
+          {posts.length === 0 ? <span className="text-muted-foreground">None.</span> : null}
+          {posts.map((p) => (
+            <span key={p.id} className="flex min-w-0 gap-2">
+              <Badge variant={p.status === "FAILED" || p.status === "PARTIALLY_PUBLISHED" ? "destructive" : "outline"}>{p.status.replace("_", " ").toLowerCase()}</Badge>
+              <span className="min-w-0 truncate">{p.content || "(media only)"}</span>
+            </span>
+          ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Audit trail</CardTitle><CardDescription><a className="underline" href={`/admin/audit?workspaceId=${ws.id}`}>See all</a></CardDescription></CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader><TableRow><TableHead>When</TableHead><TableHead>Action</TableHead><TableHead>By</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {audit.map((e) => (
+                <TableRow key={e.id}>
+                  <TableCell className="whitespace-nowrap text-xs">{e.createdAt.toISOString().slice(0, 16).replace("T", " ")}</TableCell>
+                  <TableCell className="font-mono text-xs">{e.action}</TableCell>
+                  <TableCell className="text-xs">{e.actor?.email ?? "system"}{e.impersonator ? <Badge variant="secondary" className="ml-1">support</Badge> : null}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader><CardTitle>Members</CardTitle></CardHeader>

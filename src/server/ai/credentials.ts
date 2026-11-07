@@ -5,7 +5,7 @@ import { systemDb, withTenantTx, type Tx } from "@/lib/db";
 import { logger } from "@/lib/logger";
 import { assertFeature } from "@/server/billing/entitlements";
 import { NotFoundError } from "@/server/errors";
-import { recordAudit } from "@/server/services/audit";
+import { auditActor, recordAudit } from "@/server/services/audit";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
 import { PROVIDERS, REAL_PROVIDERS } from "./catalog";
@@ -107,7 +107,7 @@ export async function setWorkspaceKey(ctx: TenantContext, provider: AiProvider, 
     const existing = await tx.providerCredential.findFirst({ where: { workspaceId: ctx.workspaceId, provider: p } });
     if (existing) await tx.providerCredential.update({ where: { id: existing.id }, data });
     else await tx.providerCredential.create({ data: { workspaceId: ctx.workspaceId, provider: p, ...data } });
-    await recordAudit({ action: "ai.byok.set", actorId: ctx.userId, workspaceId: ctx.workspaceId, metadata: { provider: p, last4: data.last4 } }, tx);
+    await recordAudit({ action: "ai.byok.set", ...auditActor(ctx), metadata: { provider: p, last4: data.last4 } }, tx);
   });
 }
 
@@ -117,6 +117,6 @@ export async function removeWorkspaceKey(ctx: TenantContext, provider: AiProvide
   await withTenantTx(ctx.workspaceId, async (tx) => {
     const { count } = await tx.providerCredential.deleteMany({ where: { workspaceId: ctx.workspaceId, provider: p } });
     if (!count) throw new NotFoundError("No key stored for that provider");
-    await recordAudit({ action: "ai.byok.remove", actorId: ctx.userId, workspaceId: ctx.workspaceId, metadata: { provider: p } }, tx);
+    await recordAudit({ action: "ai.byok.remove", ...auditActor(ctx), metadata: { provider: p } }, tx);
   });
 }

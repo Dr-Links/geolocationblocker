@@ -34,6 +34,7 @@ test("non-admins are kept out of /admin; super admin gets in", async ({ page }) 
   await logIn(page, seed.adminEmail, seed.adminPassword);
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Platform overview" })).toBeVisible();
+  await page.goto("/admin/workspaces");
   await expect(page.getByTestId("admin-workspaces")).toContainText("Globex Bakery");
   await expect(page.getByTestId("admin-workspaces")).toContainText("Acme Coffee");
 });

@@ -8,7 +8,7 @@ import { PLATFORM_KEYS } from "@/lib/platforms";
 import { signToken, verifyToken } from "@/lib/signed-token";
 import { assertWithinLimit } from "@/server/billing/entitlements";
 import { ConflictError, ForbiddenError, LimitExceededError, NotFoundError } from "@/server/errors";
-import { recordAudit } from "@/server/services/audit";
+import { auditActor, recordAudit } from "@/server/services/audit";
 import { getStorage } from "@/server/storage";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
@@ -109,7 +109,7 @@ export async function completeConnect(
         : await tx.socialAccount.create({ data: { workspaceId: ctx.workspaceId, platform, externalId: p.externalId, ...data } });
       result.connected.push(acct.displayName);
       await recordAudit(
-        { action: existing ? "social.account.reconnect" : "social.account.connect", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "SocialAccount", targetId: acct.id, metadata: { platform, handle: acct.handle, mock: publisher.isMock } },
+        { action: existing ? "social.account.reconnect" : "social.account.connect", ...auditActor(ctx), targetType: "SocialAccount", targetId: acct.id, metadata: { platform, handle: acct.handle, mock: publisher.isMock } },
         tx,
       );
     }
@@ -140,7 +140,7 @@ export async function disconnectAccount(ctx: TenantContext, accountId: string) {
       where: { id: acct.id },
       data: { status: "DISCONNECTED", accessTokenEnc: encryptSecret("revoked"), refreshTokenEnc: null, tokenExpiresAt: null, lastError: null },
     });
-    await recordAudit({ action: "social.account.disconnect", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "SocialAccount", targetId: acct.id, metadata: { platform: acct.platform } }, tx);
+    await recordAudit({ action: "social.account.disconnect", ...auditActor(ctx), targetType: "SocialAccount", targetId: acct.id, metadata: { platform: acct.platform } }, tx);
   });
 }
 

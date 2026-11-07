@@ -21,7 +21,8 @@ const STATUS_TEXT: Record<string, string> = {
 export default async function BillingPage({ searchParams }: { searchParams: Promise<{ checkout?: string }> }) {
   const { checkout } = await searchParams;
   const ctx = await getTenantContext();
-  const canManage = can(ctx.role, "billing.manage");
+  // Support staff impersonating a workspace can see but not change billing or AI keys.
+  const canManage = can(ctx.role, "billing.manage") && !ctx.impersonatorId;
   const { ent, usage } = await withTenantTx(ctx.workspaceId, async (tx) => {
     const ent = await getEntitlements(tx, ctx.workspaceId);
     return { ent, usage: await getUsage(tx, ctx.workspaceId, ent) };
@@ -34,6 +35,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
   return (
     <div className="grid grid-cols-1 gap-6">
       <div>
+        {ctx.impersonatorId ? <p className="mb-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-sm" data-testid="impersonation-readonly">Read-only in support mode.</p> : null}
         <h1 className="text-2xl font-semibold tracking-tight">Billing</h1>
         {mock ? <p className="text-sm text-muted-foreground">Test mode: payments are simulated (Stripe isn&apos;t connected yet).</p> : null}
       </div>
@@ -63,7 +65,7 @@ export default async function BillingPage({ searchParams }: { searchParams: Prom
       </Card>
 
       {!canManage ? (
-        <p className="text-sm text-muted-foreground">Only workspace admins can change the plan.</p>
+        <p className="text-sm text-muted-foreground">{ctx.impersonatorId ? "Plan changes are disabled in support mode." : "Only workspace admins can change the plan."}</p>
       ) : ent.source === "comp" ? null : (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {plans.map((p) => {

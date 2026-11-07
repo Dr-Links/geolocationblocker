@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { systemDb } from "@/lib/db";
 import { verifyToken } from "@/lib/signed-token";
 import { ConflictError, ForbiddenError, NotFoundError } from "@/server/errors";
-import { recordAudit } from "@/server/services/audit";
+import { auditActor, recordAudit } from "@/server/services/audit";
 import { assertCan } from "@/server/tenancy/guard";
 import type { TenantContext } from "@/server/tenancy/types";
 import { hasPaidAccess, isCompActive, monthlyRevenueCents } from "./limits";
@@ -64,7 +64,7 @@ export async function startCheckout(ctx: TenantContext & { user: { email: string
     successUrl: `${appUrl()}/dashboard/billing?checkout=success`,
     cancelUrl: `${appUrl()}/dashboard/billing?checkout=cancel`,
   });
-  await recordAudit({ action: "billing.checkout.start", actorId: ctx.userId, workspaceId: ctx.workspaceId, targetType: "Plan", targetId: plan.id, metadata: { provider: provider.name } });
+  await recordAudit({ action: "billing.checkout.start", ...auditActor(ctx), targetType: "Plan", targetId: plan.id, metadata: { provider: provider.name } });
   return session;
 }
 
@@ -208,5 +208,5 @@ export async function getRevenueSummary() {
     row.mrrCents += monthlyRevenueCents(s, now);
     byPlan.set(s.planId, row);
   }
-  return { mrrCents, arrCents: mrrCents * 12, payingCount: paying.length, compedCount: comped.length, pastDueCount: pastDue.length, byPlan: [...byPlan.values()] };
+  return { mrrCents, arrCents: mrrCents * 12, payingCount: paying.length, compedCount: comped.length, pastDueCount: pastDue.length, byPlan: [...byPlan.values()].sort((a, b) => b.mrrCents - a.mrrCents) };
 }
